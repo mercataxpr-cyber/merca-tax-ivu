@@ -1,0 +1,15 @@
+{
+  "name": "merca-tax-ivu",
+  "version": "1.0.0",
+  "description": "MercaTax IVU PR - Calculadora y registro de IVU para comerciantes en Puerto Rico",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "build": "echo 'No build required'",
+    "start": "node server.js",
+    "lint": "node -c server.js script.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

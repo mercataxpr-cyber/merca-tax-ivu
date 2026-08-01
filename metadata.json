@@ -1,0 +1,8 @@
+{
+  "name": "MercaTax IVU PR",
+  "description": "Herramienta desarrollada por MercaTax para ayudar a comerciantes de Puerto Rico a registrar ventas y calcular el IVU.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
