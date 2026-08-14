@@ -2,6 +2,7 @@
   "name": "MercaTax IVU PR",
   "short_name": "MercaTax IVU",
   "description": "Aplicación para comerciantes de Puerto Rico que registra ventas, calcula IVU estatal y municipal, genera reportes y organiza la radicación mensual.",
+  "id": "./index.html",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -10,7 +11,7 @@
   "theme_color": "#D4AF37",
   "lang": "es-PR",
   "icons": [
-    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
