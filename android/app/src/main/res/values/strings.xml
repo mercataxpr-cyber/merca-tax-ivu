@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MercaTax IVU PR</string>
+    <string name="title_activity_main">MercaTax IVU PR</string>
+    <string name="package_name">com.mercatax.ivupr</string>
+    <string name="custom_url_scheme">com.mercatax.ivupr</string>
+</resources>
