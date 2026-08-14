@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const nativeBridge = readFileSync('src/mobile-native-entry.js', 'utf8');
 const androidManifest = readFileSync('android/app/src/main/AndroidManifest.xml', 'utf8');
+const dataExtractionRules = readFileSync('android/app/src/main/res/xml/data_extraction_rules.xml', 'utf8');
 const workflow = readFileSync('.github/workflows/r1b-capacitor-build.yml', 'utf8');
 
 test('native mobile layer does not derive IVU due dates or days remaining', () => {
@@ -28,9 +29,28 @@ test('native legacy tax reminder hooks are disabled without inventing a fiscal f
   assert.equal(nativeBridge.includes('day >= 15'), false);
 });
 
-test('Android automatic app backup remains disabled for the local-data candidate', () => {
+test('Android automatic backup and device-transfer extraction remain disabled for the local-data candidate', () => {
   assert.match(androidManifest, /android:allowBackup="false"/);
   assert.doesNotMatch(androidManifest, /android:allowBackup="true"/);
+  assert.match(androidManifest, /android:fullBackupContent="false"/);
+  assert.match(androidManifest, /android:dataExtractionRules="@xml\/data_extraction_rules"/);
+
+  assert.match(dataExtractionRules, /<cloud-backup>/);
+  assert.match(dataExtractionRules, /<device-transfer>/);
+  for (const domain of [
+    'root',
+    'file',
+    'database',
+    'sharedpref',
+    'external',
+    'device_root',
+    'device_file',
+    'device_database',
+    'device_sharedpref'
+  ]) {
+    const matches = dataExtractionRules.match(new RegExp(`<exclude domain="${domain}" path="\\." \\/>`, 'g')) || [];
+    assert.equal(matches.length, 2, `expected cloud and device-transfer exclusion for ${domain}`);
+  }
 });
 
 test('R1-B CI certifies the checked-out candidate and cannot commit or push', () => {
