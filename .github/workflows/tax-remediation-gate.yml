@@ -1,0 +1,41 @@
+name: R1 Tax Remediation Gate
+
+on:
+  push:
+    branches:
+      - baki/mobile-r1-tax-remediation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout tax remediation SHA
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify frozen-base ancestry and main integrity
+        shell: bash
+        run: |
+          git merge-base --is-ancestor 4fdba3456625afcac16f32a9cfd3cc9afd65f3af HEAD
+          test "$(git merge-base 4fdba3456625afcac16f32a9cfd3cc9afd65f3af HEAD)" = "4fdba3456625afcac16f32a9cfd3cc9afd65f3af"
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "26bbdc4529ad7d814305ef0e22499e4ab5be75ca"
+
+      - name: Focused tax/domain tests
+        run: npm run test:tax
+
+      - name: Full project gate
+        run: npm run gate
+
+      - name: Verify generated files leave worktree clean
+        run: git diff --exit-code
