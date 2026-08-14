@@ -4,10 +4,18 @@
   "description": "MercaTax IVU PR - Calculadora y registro de IVU para comerciantes en Puerto Rico",
   "type": "module",
   "scripts": {
-    "dev": "node server.js",
-    "build": "echo 'No build required'",
-    "start": "node server.js",
-    "lint": "node -c server.js script.js"
+    "dev": "npm run build && node server.js",
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && node server.js",
+    "lint": "node scripts/lint.mjs",
+    "test": "node --test test/*.test.js",
+    "test:ivu": "node --test test/ivu.test.js",
+    "test:rounding": "node --test test/rounding.test.js",
+    "test:multi-business": "node --test test/multi-business.test.js",
+    "test:backup": "node --test test/backup.test.js",
+    "test:malformed": "node --test test/malformed-input.test.js",
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "gate": "npm run build && npm run lint && npm test && npm run secret-scan"
   },
   "dependencies": {
     "express": "^4.21.2"
