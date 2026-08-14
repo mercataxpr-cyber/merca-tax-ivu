@@ -180,26 +180,12 @@ async function installNativeOverrides() {
     }
   };
 
-  window.sendLocalReminder = async (days) => {
-    const key = 'mt_notice_' + new Date().toISOString().slice(0, 10);
-    if (localStorage.getItem(key)) return;
-    const result = await bridge.notifications.schedule({
-      id: Number(new Date().toISOString().slice(0, 10).replace(/-/g, '').slice(-8)),
-      title: 'MercaTax IVU PR',
-      body: `Recordatorio: faltan ${days} días para rendir/pagar IVU.`,
-      at: Date.now() + 1000
-    });
-    if (result.ok) localStorage.setItem(key, '1');
-  };
-
+  // R1-B remediation: native notification plumbing is intentionally tax-agnostic.
+  // Legacy tax-specific reminder hooks remain disabled until a certified domain value is supplied.
+  window.sendLocalReminder = async () => ({ ok: false, reason: 'domain-schedule-required' });
   window.checkIvuReminder = () => {
     if (typeof window.updateNotificationButton === 'function') window.updateNotificationButton();
-    const day = new Date().getDate();
-    let days = 20 - day;
-    if (days < 0) days = 20;
-    if ((day >= 15 || day === 1) && notificationPermission === 'granted') {
-      setTimeout(() => window.sendLocalReminder(days), 800);
-    }
+    return false;
   };
 
   window.openExternal = (url) => {
