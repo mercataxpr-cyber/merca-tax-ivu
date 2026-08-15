@@ -64,6 +64,9 @@ jobs:
       - name: Run focused TAX regression gate
         run: npm run test:tax
 
+      - name: Run causal mobile TAX build-parity regression test
+        run: npm run test:mobile-tax-parity
+
       - name: Run mobile foundation and backup gates
         shell: bash
         run: |
@@ -71,17 +74,13 @@ jobs:
           npm run mobile:gate
           npm run test:backup
 
-      - name: Build and sync local native bundle
+      - name: Build, sync, and prove certified TAX runtime parity
         shell: bash
         run: |
           set -euo pipefail
           npm run mobile:build
           npx cap sync
-          test -f ios/App/App/public/index.html
-          test -f android/app/src/main/assets/public/index.html
-          grep -q "src/tax-remediation.js" script.js
-          grep -q "src/tax-calendar-contract.js" script.js
-          grep -q "src/tax-ui-bridge.js" script.js
+          npm run mobile:tax-parity
 
       - name: Build Android debug and unsigned release AAB
         shell: bash

@@ -15,13 +15,15 @@
     "test:multi-business": "node --test test/multi-business.test.js",
     "test:backup": "node --test test/backup.test.js",
     "test:malformed": "node --test test/malformed-input.test.js",
+    "test:mobile-tax-parity": "node --test test/mobile-tax-runtime-parity.test.js",
     "secret-scan": "node scripts/secret-scan.mjs",
     "gate": "npm run build && npm run lint && npm test && npm run secret-scan",
     "mobile:build": "npm run build && node scripts/build-mobile.mjs",
     "mobile:sync": "npm run mobile:build && cap sync",
     "mobile:open:ios": "npm run mobile:sync && cap open ios",
     "mobile:open:android": "npm run mobile:sync && cap open android",
-    "mobile:gate": "node scripts/mobile-foundation-gate.mjs"
+    "mobile:gate": "node scripts/mobile-foundation-gate.mjs",
+    "mobile:tax-parity": "node scripts/mobile-tax-runtime-parity.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.4.2",

@@ -1,5 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { build } from 'esbuild';
+import { transformAppSource, transformIndexSource } from './runtime-tax-transform.mjs';
 
 const out = 'www';
 rmSync(out, { recursive: true, force: true });
@@ -25,6 +26,11 @@ for (const dir of ['assets', 'src']) {
   if (existsSync(dir)) cpSync(dir, `${out}/${dir}`, { recursive: true });
 }
 
+// Capacitor must consume the same TAX-prepared runtime served by server.js.
+// Reuse the certified transform module directly; do not duplicate TAX rules here.
+writeFileSync(`${out}/index.html`, transformIndexSource(readFileSync('index.html', 'utf8')));
+writeFileSync(`${out}/src/app.js`, transformAppSource(readFileSync('src/app.js', 'utf8')));
+
 await build({
   entryPoints: ['src/mobile-native-entry.js'],
   bundle: true,
@@ -46,4 +52,4 @@ if (!html.includes('mobile-native.js')) {
   writeFileSync(indexPath, html);
 }
 
-console.log('Mobile web bundle ready in www/ with local assets and native bridge.');
+console.log('Mobile web bundle ready in www/ with certified TAX transforms and native bridge.');
