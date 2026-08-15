@@ -142,14 +142,6 @@
     el('modal').style.display = 'flex';
   };
 
-  window.sendLocalReminder = function sendLocalReminder(days) {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    const key = 'mt_notice_' + new Date().toISOString().slice(0, 10);
-    if (localStorage.getItem(key)) return;
-    new Notification('MercaTax IVU PR', { body: 'Recordatorio: faltan ' + days + ' días para rendir/pagar IVU.', icon: 'icon-192.png' });
-    localStorage.setItem(key, '1');
-  };
-
   window.openExternal = function openExternal(url) {
     let opened = null;
     try { opened = window.open(url, '_blank', 'noopener,noreferrer'); } catch (error) {}
@@ -178,7 +170,7 @@
   window.showDialog = function showDialogMobile(type) {
     baseShowDialog(type);
     if (type === 'instrucciones') {
-      el('modalBody').innerHTML = '<p>1. Registre el monto vendido <b>con IVU incluido</b>.</p><p>2. La app desglosa automáticamente: venta sin IVU, IVU estatal 10.5%, IVU municipal 1% y total vendido.</p><p>3. Use el reporte mensual para separar el IVU y radicar antes del día 20.</p><p>Las acciones destructivas siempre solicitan una confirmación explícita antes de borrar datos.</p>';
+      el('modalBody').innerHTML = '<p>1. Registre el monto vendido <b>con IVU incluido</b>.</p><p>2. La app desglosa automáticamente la venta sin IVU y los componentes estatal y municipal según el perfil tributario seleccionado.</p><p>3. Use el reporte mensual para separar el IVU y consulte la fecha efectiva certificada del calendario contributivo.</p><p>Las acciones destructivas siempre solicitan una confirmación explícita antes de borrar datos.</p>';
     }
     if (type === 'acerca') {
       el('modalBody').innerHTML = el('modalBody').innerHTML

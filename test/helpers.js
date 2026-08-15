@@ -1,4 +1,5 @@
 import '../src/domain.js';
+import '../src/tax-remediation.js';
 
 export const domain = globalThis.MercaTaxDomain;
 

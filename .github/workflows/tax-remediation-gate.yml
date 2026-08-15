@@ -1,0 +1,49 @@
+name: R1 Tax Remediation Gate
+
+on:
+  push:
+    branches:
+      - baki/mobile-r1-tax-remediation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout tax remediation SHA
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify frozen-base ancestry, exact run SHA and main integrity
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git merge-base --is-ancestor 024f733dba5f84839e73f65bcca26275bdfab853 HEAD
+          git merge-base --is-ancestor 6dee7765be30660e6c8f3095659bec43e462a3ac HEAD
+          git merge-base --is-ancestor 89ef56b7bc1f328f91c8419a4f30f7c79897d923 HEAD
+          git merge-base --is-ancestor 4fdba3456625afcac16f32a9cfd3cc9afd65f3af HEAD
+          test "$(git merge-base 4fdba3456625afcac16f32a9cfd3cc9afd65f3af HEAD)" = "4fdba3456625afcac16f32a9cfd3cc9afd65f3af"
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "26bbdc4529ad7d814305ef0e22499e4ab5be75ca"
+
+      - name: Focused tax/domain tests
+        run: npm run test:tax
+
+      - name: Full project gate
+        run: npm run gate
+
+      - name: Verify generated files leave worktree clean
+        shell: bash
+        run: |
+          git status --short
+          test -z "$(git status --short)"
+          git diff --exit-code
