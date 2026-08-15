@@ -86,6 +86,8 @@ function fakeBrowser() {
     crypto: { randomUUID: () => 'runtime-test-id' },
     setTimeout(fn) { fn(); return 1; },
     clearTimeout() {},
+    addEventListener() {},
+    removeEventListener() {},
     alert() {},
     confirm() { return true; },
   };
