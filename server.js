@@ -1,5 +1,6 @@
 import http from 'node:http';
-import { createReadStream, readFile } from 'node:fs';
+import { createReadStream } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { transformAppSource, transformIndexSource } from './scripts/runtime-tax-transform.mjs';
