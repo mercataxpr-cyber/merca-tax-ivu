@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { request as httpRequest } from 'node:http';
 import vm from 'node:vm';
 import { createMercaTaxServer } from '../server.js';
 
@@ -46,6 +47,7 @@ function fakeBrowser() {
         options: [],
         classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
         add(option) { this.options.push(option); },
+        appendChild() {},
         click() {},
         focus() {},
       });
@@ -90,6 +92,7 @@ function fakeBrowser() {
     removeEventListener() {},
     alert() {},
     confirm() { return true; },
+    location: { href: 'http://127.0.0.1/' , assign() {} },
   };
   context.window = context;
   context.globalThis = context;
@@ -109,28 +112,125 @@ async function withServer(run) {
   finally { await new Promise((resolve) => server.close(resolve)); }
 }
 
+function rawGet(base, requestPath) {
+  const target = new URL(base);
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({
+      hostname: target.hostname,
+      port: target.port,
+      method: 'GET',
+      path: requestPath,
+    }, (response) => {
+      const chunks = [];
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolve({ status: response.statusCode, body: chunks.join('') }));
+    });
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+function loaderPaths(source) {
+  return [...source.matchAll(/\bload\('([^']+)'/g)].map((match) => `/${match[1]}`);
+}
+
 async function loadServedRuntime(base) {
-  const html = await (await fetch(`${base}/`)).text();
+  const htmlResponse = await rawGet(base, '/');
+  assert.equal(htmlResponse.status, 200);
+  const html = htmlResponse.body;
   assert.match(html, /<script src="\/script\.js"><\/script>/);
   assert.doesNotMatch(html, /const WA='17873566336', PIN='1234'/);
   assert.doesNotMatch(html, /20-today\.getDate|rate\|\|\.115|radicar antes del día 20/i);
   assert.match(html, /id="taxProfile"/);
   assert.match(html, /id="effectiveDueDate">—</);
 
+  const loaderResponse = await rawGet(base, '/script.js');
+  assert.equal(loaderResponse.status, 200, 'script.js must be served');
+  const paths = loaderPaths(loaderResponse.body);
+  assert.deepEqual(paths, [
+    '/src/domain.js',
+    '/src/tax-remediation.js',
+    '/src/tax-calendar-contract.js',
+    '/src/tax-ui-bridge.js',
+    '/src/app.js',
+    '/src/mobile-r1-ui.js',
+  ]);
+
   const browser = fakeBrowser();
-  const paths = ['/src/domain.js','/src/tax-remediation.js','/src/tax-calendar-contract.js','/src/tax-ui-bridge.js','/src/app.js'];
+  let certifiedReminderSource = null;
   for (const scriptPath of paths) {
-    const response = await fetch(`${base}${scriptPath}`);
+    const response = await rawGet(base, scriptPath);
     assert.equal(response.status, 200, `${scriptPath} must be served`);
-    const source = await response.text();
+    const source = response.body;
     if (scriptPath === '/src/app.js') {
       assert.doesNotMatch(source, /20-today\.getDate|days=20-d|radicar antes del día 20|s\.rate\?\?MercaTaxDomain\.DEFAULT_RATE|getElementById\('rate'\)/i);
       assert.match(source, /fecha efectiva certificada del calendario contributivo/i);
     }
+    if (scriptPath === '/src/mobile-r1-ui.js') {
+      assert.doesNotMatch(source, /window\.sendLocalReminder|faltan ['" ]*\+ *days|IVU estatal 10\.5%|IVU municipal 1%|radicar antes del día 20/i);
+    }
     vm.runInContext(source, browser.context, { filename: scriptPath });
+    if (scriptPath === '/src/app.js') certifiedReminderSource = String(browser.context.sendLocalReminder);
   }
-  return { html, ...browser };
+
+  assert.ok(certifiedReminderSource, 'app must install the certified reminder presenter');
+  assert.equal(String(browser.context.sendLocalReminder), certifiedReminderSource, 'mobile UI must not replace the certified reminder presenter');
+  assert.match(certifiedReminderSource, /reminder\.effectiveDate/);
+  assert.doesNotMatch(certifiedReminderSource, /faltan ['" ]*\+ *days|20-/i);
+  return { html, loader: loaderResponse.body, paths, ...browser };
 }
+
+function assertProtectedAppSource(source) {
+  assert.doesNotMatch(source, /20-today\.getDate|days=20-d|s\.rate\?\?MercaTaxDomain\.DEFAULT_RATE|getElementById\('rate'\)|radicar antes del día 20/i);
+  assert.match(source, /MercaTaxTaxUi\.breakdownForSale/);
+}
+
+function assertProtectedHtml(source) {
+  assert.match(source, /<script src="\/script\.js"><\/script>/);
+  assert.doesNotMatch(source, /const WA='17873566336', PIN='1234'/);
+  assert.doesNotMatch(source, /20-today\.getDate|radicar antes del día 20/i);
+}
+
+test('protected HTTP aliases cannot bypass runtime tax transforms', async () => withServer(async (base) => {
+  const htmlAliases = [
+    '/',
+    '/index.html',
+    '/./index.html',
+    '/x/../index.html',
+    '//index.html',
+    '/%69ndex.html',
+    '/index.html?x=1',
+  ];
+  for (const requestPath of htmlAliases) {
+    const response = await rawGet(base, requestPath);
+    assert.equal(response.status, 200, `${requestPath} must resolve through the protected HTML transform`);
+    assertProtectedHtml(response.body);
+  }
+
+  const appAliases = [
+    '/src/app.js',
+    '/src//app.js',
+    '/src/./app.js',
+    '/src/x/../app.js',
+    '//src/app.js',
+    '/%73rc/app.js',
+    '/src/%2e/app.js',
+    '/src/x/%2e%2e/app.js',
+    '/src%2Fapp.js',
+    '/src/app.js?x=1',
+  ];
+  for (const requestPath of appAliases) {
+    const response = await rawGet(base, requestPath);
+    assert.equal(response.status, 200, `${requestPath} must resolve through the protected app transform`);
+    assertProtectedAppSource(response.body);
+  }
+
+  const malformed = await rawGet(base, '/src/%E0%A4%A');
+  assert.equal(malformed.status, 400);
+  const traversal = await rawGet(base, '/%2e%2e/src/app.js');
+  assert.equal(traversal.status, 403);
+}));
 
 test('served entrypoint executes certified profile pipeline for GENERAL_11_5, SPECIAL_4 and ZERO', async () => withServer(async (base) => {
   const { context, element, localStorage } = await loadServedRuntime(base);
@@ -157,9 +257,37 @@ test('served entrypoint executes certified profile pipeline for GENERAL_11_5, SP
   }
 
   const special = context.saleBreakdown({ amount: 104, taxProfile: 'SPECIAL_4' });
+  assert.equal(special.base, 100);
+  assert.equal(special.estatal, 4);
+  assert.equal(special.municipal, 0);
+  assert.equal(special.ivu, 4);
   assert.notEqual(special.estatalRate, 0.03);
   assert.notEqual(special.municipalRate, 0.01);
-  assert.throws(() => context.saleBreakdown({ amount: 110, rate: 0.10 }), (error) => error && error.code === 'TAX_PROFILE_REQUIRED');
+}));
+
+test('served runtime rejects legacy numeric rate as tax-profile authority', async () => withServer(async (base) => {
+  const { context } = await loadServedRuntime(base);
+  const legacyCases = [
+    { amount: 111.5, rate: 0.115 },
+    { amount: 104, rate: 0.04 },
+    { amount: 107, rate: 0.07 },
+    { amount: 100, rate: 0 },
+    { amount: 110, rate: 0.10 },
+  ];
+  for (const sale of legacyCases) {
+    const preserved = { ...sale };
+    context.MercaTaxTaxUi.migrateSale(preserved);
+    assert.equal(preserved.rate, sale.rate);
+    assert.equal(preserved.taxProfile, undefined);
+    assert.equal(preserved.taxProfileStatus, 'TAX_PROFILE_REQUIRED');
+    assert.throws(() => context.saleBreakdown(preserved), (error) => error && error.code === 'TAX_PROFILE_REQUIRED');
+  }
+
+  const explicit = context.saleBreakdown({ amount: 104, taxProfile: 'SPECIAL_4' });
+  assert.equal(explicit.base, 100);
+  assert.equal(explicit.estatal, 4);
+  assert.equal(explicit.municipal, 0);
+  assert.equal(explicit.ivu, 4);
 }));
 
 test('served runtime uses certified effectiveDate for period, weekend, nonWorkingDates and official override', async () => withServer(async (base) => {
@@ -172,6 +300,7 @@ test('served runtime uses certified effectiveDate for period, weekend, nonWorkin
   assert.equal(absent.effectiveDate, null);
   assert.equal(element('effectiveDueDate').textContent, '—');
   assert.match(element('daysLeft').textContent, /calendario certificado requerido/i);
+  assert.equal(ui.reminderForPeriod({ reportingPeriod: '2026-04', currentDate: '2026-05-19' }), null);
 
   ui.configureCalendar({ calendar: certifiedCalendar() });
   const saturday = ui.duePresentation({ reportingPeriod: '2026-05', currentDate: '2026-06-19' });
@@ -202,11 +331,19 @@ test('served runtime uses certified effectiveDate for period, weekend, nonWorkin
   assert.equal(april.effectiveDate, '2026-05-29');
   assert.equal(april.daysRemaining, 8);
   assert.equal(element('effectiveDueDate').textContent, '2026-05-29');
-  assert.doesNotMatch(element('daysLeft').textContent, /vence el día 20/i);
+  assert.doesNotMatch(element('daysLeft').textContent, /vence el día 20|vencido/i);
+
+  const earlyReminder = ui.reminderForPeriod({ reportingPeriod: '2026-04', currentDate: '2026-05-21' });
+  assert.equal(earlyReminder.ready, false);
+  assert.equal(earlyReminder.effectiveDate, '2026-05-29');
+  assert.equal(earlyReminder.daysRemaining, 8);
+  assert.equal(earlyReminder.body, null);
 }));
 
-test('served app countdown and reminder consume the same certified April 2026 effectiveDate', async () => withServer(async (base) => {
-  const { context, element, notifications } = await loadServedRuntime(base);
+test('complete served loader preserves certified April 2026 reminder after mobile UI', async () => withServer(async (base) => {
+  const { context, element, notifications, paths } = await loadServedRuntime(base);
+  assert.equal(paths.at(-1), '/src/mobile-r1-ui.js');
+
   element('date').value = '2026-04-10';
   element('amount').value = '111.50';
   element('taxProfile').value = 'GENERAL_11_5';
@@ -229,6 +366,7 @@ test('served app countdown and reminder consume the same certified April 2026 ef
   assert.match(element('daysLeft').textContent, /1 días.*2026-05-29/i);
   context.checkIvuReminder();
   assert.equal(notifications.length, 1);
+  assert.match(notifications[0].body, /1 día|1 días/i);
   assert.match(notifications[0].body, /2026-05-29/);
-  assert.doesNotMatch(notifications[0].body, /día 20|20 -/i);
+  assert.doesNotMatch(notifications[0].body, /\[object Object\]|día 20|20 -/i);
 }));

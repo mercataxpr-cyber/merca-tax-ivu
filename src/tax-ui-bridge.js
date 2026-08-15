@@ -13,22 +13,13 @@
     return new tax.DomainValidationError(message, code);
   }
 
-  function profileForLegacyRate(rate) {
-    if (rate === null || rate === undefined || rate === '') return null;
-    const value = Number(rate);
-    if (!Number.isFinite(value)) return null;
-    const rounded = tax.roundRate(value);
-    for (const profile of Object.values(tax.TAX_PROFILES)) {
-      if (tax.roundRate(profile.totalRate) === rounded) return profile.id;
-    }
-    return null;
-  }
-
   function migrateSale(sale) {
     if (!sale || typeof sale !== 'object') return sale;
-    if (typeof sale.taxProfile === 'string' && tax.TAX_PROFILES[sale.taxProfile]) return sale;
-    const profileId = profileForLegacyRate(sale.rate);
-    if (profileId) sale.taxProfile = profileId;
+    if (typeof sale.taxProfile === 'string' && tax.TAX_PROFILES[sale.taxProfile]) {
+      if (sale.taxProfileStatus === 'TAX_PROFILE_REQUIRED') delete sale.taxProfileStatus;
+      return sale;
+    }
+    sale.taxProfileStatus = 'TAX_PROFILE_REQUIRED';
     return sale;
   }
 
@@ -159,12 +150,16 @@
 
   function reminderForPeriod(input) {
     const presentation = duePresentation(input);
-    if (!presentation.ready || presentation.daysRemaining < 0 || presentation.daysRemaining > 5) return null;
-    const body = presentation.daysRemaining === 0
-      ? `Recordatorio: hoy es la fecha efectiva certificada del IVU (${presentation.effectiveDate}).`
-      : `Recordatorio: faltan ${presentation.daysRemaining} días para la fecha efectiva certificada del IVU (${presentation.effectiveDate}).`;
+    if (!presentation.ready) return null;
+    const ready = presentation.daysRemaining >= 0 && presentation.daysRemaining <= 5;
+    let body = null;
+    if (ready) {
+      body = presentation.daysRemaining === 0
+        ? `Recordatorio: hoy es la fecha efectiva certificada del IVU (${presentation.effectiveDate}).`
+        : `Recordatorio: faltan ${presentation.daysRemaining} días para la fecha efectiva certificada del IVU (${presentation.effectiveDate}).`;
+    }
     return Object.freeze({
-      ready: true,
+      ready,
       title: 'MercaTax IVU PR',
       body,
       effectiveDate: presentation.effectiveDate,
@@ -175,7 +170,6 @@
   root.MercaTaxTaxUi = Object.freeze({
     breakdownForSale,
     createSaleRecord,
-    profileForLegacyRate,
     migrateSale,
     configureCalendar,
     resetCalendar,
