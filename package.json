@@ -11,7 +11,7 @@
     "test": "node --test test/*.test.js",
     "test:ivu": "node --test test/ivu.test.js",
     "test:rounding": "node --test test/rounding.test.js",
-    "test:tax": "node --test test/ivu.test.js test/rounding.test.js test/tax-remediation.test.js test/tax-calendar-contract.test.js",
+    "test:tax": "node --test test/ivu.test.js test/rounding.test.js test/tax-remediation.test.js test/tax-calendar-contract.test.js test/runtime-tax-integration.test.js",
     "test:multi-business": "node --test test/multi-business.test.js",
     "test:backup": "node --test test/backup.test.js",
     "test:malformed": "node --test test/malformed-input.test.js",
