@@ -113,6 +113,7 @@ async function loadServedRuntime(base) {
   const html = await (await fetch(`${base}/`)).text();
   assert.match(html, /<script src="\/script\.js"><\/script>/);
   assert.doesNotMatch(html, /const WA='17873566336', PIN='1234'/);
+  assert.doesNotMatch(html, /20-today\.getDate|rate\|\|\.115|radicar antes del día 20/i);
   assert.match(html, /id="taxProfile"/);
   assert.match(html, /id="effectiveDueDate">—</);
 
@@ -122,6 +123,10 @@ async function loadServedRuntime(base) {
     const response = await fetch(`${base}${scriptPath}`);
     assert.equal(response.status, 200, `${scriptPath} must be served`);
     const source = await response.text();
+    if (scriptPath === '/src/app.js') {
+      assert.doesNotMatch(source, /20-today\.getDate|days=20-d|radicar antes del día 20|s\.rate\?\?MercaTaxDomain\.DEFAULT_RATE|getElementById\('rate'\)/i);
+      assert.match(source, /fecha efectiva certificada del calendario contributivo/i);
+    }
     vm.runInContext(source, browser.context, { filename: scriptPath });
   }
   return { html, ...browser };

@@ -86,6 +86,18 @@ export function transformAppSource(source) {
     "function sendLocalReminder(reminder){if(!reminder||!reminder.ready||!('Notification' in window)||Notification.permission!=='granted')return;const key='mt_notice_'+reminder.effectiveDate+'_'+new Date().toISOString().slice(0,10);if(localStorage.getItem(key))return;new Notification(reminder.title,{body:reminder.body,icon:'assets/icon-192.png'});localStorage.setItem(key,'1')}\nfunction checkIvuReminder(){updateNotificationButton();const reminder=MercaTaxTaxUi.reminderForPeriod({reportingPeriod:state.selectedMonth,currentDate:new Date()});if(reminder&&reminder.ready&&notificationState()==='granted'){setTimeout(()=>sendLocalReminder(reminder),800)}}",
     'legacy day-20 reminder',
   );
+  output = replaceExactly(
+    output,
+    'La app desglosa automáticamente: venta sin IVU, IVU estatal 10.5%, IVU municipal 1% y total vendido.',
+    'La app desglosa automáticamente la venta sin IVU y los componentes estatal y municipal según el perfil tributario certificado.',
+    'legacy fixed-rate instructions wording',
+  );
+  output = replaceExactly(
+    output,
+    'Use el reporte mensual para separar el IVU y radicar antes del día 20.',
+    'Use el reporte mensual para separar el IVU y consulte la fecha efectiva certificada del calendario contributivo.',
+    'legacy fixed-day instructions wording',
+  );
 
   output = output.replaceAll('IVU estatal 10.5%', 'IVU estatal');
   output = output.replaceAll('IVU municipal 1%', 'IVU municipal');
