@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import { transformAppSource, transformIndexSource } from './runtime-tax-transform.mjs';
+import { injectLegalLinks, stripWebAnalyticsForNative } from './legal-runtime.mjs';
 
 const out = 'www';
 rmSync(out, { recursive: true, force: true });
@@ -13,6 +14,8 @@ const files = [
   'mobile-r1.css',
   'manifest.json',
   'privacy.html',
+  'terms.html',
+  'legal-links.js',
   'icon-192.png',
   'icon-512.png',
   'apple-touch-icon.png',
@@ -28,7 +31,10 @@ for (const dir of ['assets', 'src']) {
 
 // Capacitor must consume the same TAX-prepared runtime served by server.js.
 // Reuse the certified transform module directly; do not duplicate TAX rules here.
-writeFileSync(`${out}/index.html`, transformIndexSource(readFileSync('index.html', 'utf8')));
+const preparedIndex = stripWebAnalyticsForNative(
+  injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')))
+);
+writeFileSync(`${out}/index.html`, preparedIndex);
 writeFileSync(`${out}/src/app.js`, transformAppSource(readFileSync('src/app.js', 'utf8')));
 
 await build({
@@ -52,4 +58,4 @@ if (!html.includes('mobile-native.js')) {
   writeFileSync(indexPath, html);
 }
 
-console.log('Mobile web bundle ready in www/ with certified TAX transforms and native bridge.');
+console.log('Mobile web bundle ready in www/ with certified TAX transforms, legal pages, native analytics parity and native bridge.');
