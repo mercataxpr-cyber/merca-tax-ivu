@@ -1,0 +1,54 @@
+name: Legal Store Readiness R0
+
+on:
+  pull_request:
+    branches:
+      - integration/mobile-tax-r1-final
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  legal-store-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Full repository gate
+        run: npm run gate
+
+      - name: Materialize native runtime
+        run: npm run mobile:build
+
+      - name: Verify legal pages in web output
+        shell: bash
+        run: |
+          test -s public/privacy.html
+          test -s public/terms.html
+          grep -q 'legal-links.js' public/index.html
+          grep -q 'id="taxProfile"' public/index.html
+
+      - name: Verify legal pages and analytics parity in native output
+        shell: bash
+        run: |
+          test -s www/privacy.html
+          test -s www/terms.html
+          test -s www/legal-links.js
+          grep -q 'legal-links.js' www/index.html
+          if grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html; then
+            echo 'BLOCKER: web analytics bootstrap leaked into native runtime.' >&2
+            exit 1
+          fi
+          grep -q 'id="taxProfile"' www/index.html
