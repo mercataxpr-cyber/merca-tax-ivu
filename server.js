@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { transformAppSource, transformIndexSource } from './scripts/runtime-tax-transform.mjs';
+import { injectLegalLinks } from './scripts/legal-runtime.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const mime = {
@@ -73,7 +74,7 @@ export function createMercaTaxServer({ rootDir = root } = {}) {
     if (!canonicalRelative) return sendError(res, 403, 'Forbidden');
 
     if (canonicalRelative === 'index.html') {
-      return sendTransformedText(res, file, transformIndexSource, mime['.html']);
+      return sendTransformedText(res, file, source => injectLegalLinks(transformIndexSource(source)), mime['.html']);
     }
     if (canonicalRelative === 'src/app.js') {
       return sendTransformedText(res, file, transformAppSource, mime['.js']);
