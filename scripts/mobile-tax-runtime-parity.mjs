@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { transformAppSource, transformIndexSource } from './runtime-tax-transform.mjs';
+import { injectLegalLinks, stripWebAnalyticsForNative } from './legal-runtime.mjs';
 
 function requireGate(condition, message) {
   if (!condition) throw new Error(message);
@@ -48,9 +49,11 @@ const wwwIndex = readText(wwwIndexPath);
 const wwwApp = readText(wwwAppPath);
 const wwwLoader = readText(wwwLoaderPath);
 
-const expectedIndex = transformIndexSource(rawIndex);
+const expectedIndex = stripWebAnalyticsForNative(
+  injectLegalLinks(transformIndexSource(rawIndex))
+);
 const expectedApp = transformAppSource(rawApp);
-requireGate(stripNativeInjection(wwwIndex) === expectedIndex, 'www/index.html is not the certified transformIndexSource() output plus native injection');
+requireGate(stripNativeInjection(wwwIndex) === expectedIndex, 'www/index.html is not the canonical TAX + Legal - web analytics mobile build output plus native injection');
 requireGate(wwwApp === expectedApp, 'www/src/app.js is not the certified transformAppSource() output');
 requireGate(wwwApp !== rawApp, 'www/src/app.js unexpectedly equals raw legacy source');
 requireGate(stripNativeInjection(wwwIndex) !== rawIndex, 'www/index.html unexpectedly equals raw legacy source');
@@ -58,7 +61,10 @@ requireGate(stripNativeInjection(wwwIndex) !== rawIndex, 'www/index.html unexpec
 requireIncludes(wwwIndex, '<script src="/script.js"></script>', 'certified loader reference');
 requireIncludes(wwwIndex, '<select id="taxProfile"', 'certified tax profile selector');
 requireIncludes(wwwIndex, 'id="effectiveDueDate">—</b>', 'certified effective due date placeholder');
+requireIncludes(wwwIndex, 'legal-links.js', 'legal runtime reference');
 requireIncludes(wwwIndex, '<script src="mobile-native.js" defer></script>', 'native bridge injection');
+requireExcludes(wwwIndex, 'googletagmanager.com', 'web analytics bootstrap');
+requireExcludes(wwwIndex, 'gtag(', 'web analytics bootstrap');
 requireExcludes(wwwIndex, "<script>\nconst WA='17873566336', PIN='1234';", 'inline application');
 requireExcludes(wwwIndex, 'id="rate" class="input" type="number" value="11.5"', 'numeric tax input');
 requireExcludes(wwwIndex, '<b class="mono">20</b>', 'hard-coded due day');
