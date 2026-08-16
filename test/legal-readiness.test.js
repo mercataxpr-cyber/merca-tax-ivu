@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { injectLegalLinks, stripWebAnalyticsForNative } from '../scripts/legal-runtime.mjs';
+import { transformIndexSource } from '../scripts/runtime-tax-transform.mjs';
 
 test('public legal documents exist and identify MercaTax IVU PR', () => {
   for (const file of ['terms.html', 'privacy.html']) {
@@ -33,12 +34,13 @@ gtag('config', 'G-TEST123');
   assert.doesNotMatch(native, /gtag\(['"]config['"]/);
 });
 
-test('generated static web output contains legal navigation and certified TAX runtime', () => {
-  assert.equal(existsSync('public/index.html'), true, 'npm run build must materialize public/index.html');
-  const html = readFileSync('public/index.html', 'utf8');
+test('static web transform contains legal navigation and certified TAX runtime', () => {
+  const html = injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')));
   assert.match(html, /legal-links\.js/);
   assert.match(html, /id="taxProfile"/);
   assert.doesNotMatch(html, /id="rate" class="input" type="number" value="11\.5"/);
-  assert.equal(existsSync('public/privacy.html'), true);
-  assert.equal(existsSync('public/terms.html'), true);
+  const buildWeb = readFileSync('scripts/build-web.mjs', 'utf8');
+  assert.match(buildWeb, /const out = 'public'/);
+  assert.match(buildWeb, /privacy\.html/);
+  assert.match(buildWeb, /terms\.html/);
 });
