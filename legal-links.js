@@ -1,5 +1,7 @@
 (function(){
   'use strict';
+  if(window.__MERCATAX_LEGAL_LINKS_BOOTSTRAPPED__) return;
+  window.__MERCATAX_LEGAL_LINKS_BOOTSTRAPPED__=true;
   function createLink(href,label){
     var a=document.createElement('a');
     a.href=href;
