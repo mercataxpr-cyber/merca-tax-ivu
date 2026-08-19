@@ -6,6 +6,9 @@ on:
       - integration/mobile-tax-r1-final
       - mobi/r2-final-parity-gate-remediation
       - mobi/store-release-r1-final
+  pull_request:
+    branches:
+      - integration/mobile-tax-r1-final
   workflow_dispatch:
 
 permissions:
@@ -19,12 +22,15 @@ jobs:
   certify-integrated-candidate:
     runs-on: macos-15
     timeout-minutes: 50
+    env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      CANDIDATE_BRANCH: ${{ github.head_ref || github.ref_name }}
 
     steps:
       - name: Checkout exact integrated candidate
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.CANDIDATE_SHA }}
           fetch-depth: 0
 
       - name: Prove integration ancestry and main isolation
@@ -34,11 +40,11 @@ jobs:
           MOBI="419f2d7f3b60d2fde410be2e40b6a7d7b55a9383"
           TAX="23a016f08385439943728056319936bc581dece2"
           EXPECTED_MAIN="26bbdc4529ad7d814305ef0e22499e4ab5be75ca"
-          case "$GITHUB_REF_NAME" in
+          case "$CANDIDATE_BRANCH" in
             integration/mobile-tax-r1-final|mobi/r2-final-parity-gate-remediation|mobi/store-release-r1-final) ;;
-            *) echo "Unexpected certification branch: $GITHUB_REF_NAME" >&2; exit 1 ;;
+            *) echo "Unexpected certification branch: $CANDIDATE_BRANCH" >&2; exit 1 ;;
           esac
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           git merge-base --is-ancestor "$MOBI" HEAD
           git merge-base --is-ancestor "$TAX" HEAD
           git merge-base --is-ancestor "e54ceda5be6751600127abeeb28853002a4eaf02" HEAD
@@ -179,13 +185,13 @@ jobs:
           git diff --exit-code
           git diff --cached --exit-code
           test -z "$(git status --porcelain --untracked-files=no)"
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           echo "FINAL_INTEGRATION_WORKTREE_CLEAN=PASS"
 
       - name: Upload Android validation artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mercatax-final-r1-android-${{ github.sha }}
+          name: mercatax-final-r1-android-${{ env.CANDIDATE_SHA }}
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/bundle/release/app-release.aab
