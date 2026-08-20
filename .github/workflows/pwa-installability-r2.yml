@@ -1,0 +1,117 @@
+name: PWA Installability R2
+
+on:
+  push:
+    branches:
+      - fix/pwa-installability-r2
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate exact 512px derivative from approved AppIcon
+        run: |
+          python3 -m pip install --disable-pip-version-check --quiet 'Pillow==11.3.0'
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          source = Path('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png')
+          output = Path('assets/pwa/icon-512.png')
+          output.parent.mkdir(parents=True, exist_ok=True)
+          with Image.open(source) as image:
+              if image.size != (1024, 1024):
+                  raise SystemExit(f'Expected approved 1024x1024 AppIcon, got {image.size}')
+              image.convert('RGBA').resize((512, 512), Image.Resampling.LANCZOS).save(output, format='PNG', optimize=False)
+          with Image.open(output) as check:
+              if check.size != (512, 512):
+                  raise SystemExit(f'Generated PWA icon has wrong size: {check.size}')
+          print('Generated assets/pwa/icon-512.png from approved 1024px AppIcon: 512x512')
+          PY
+
+      - name: Update PWA manifest and build contracts
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest_path = Path('manifest.json')
+          manifest = json.loads(manifest_path.read_text())
+          if len(manifest.get('icons', [])) < 2:
+              raise SystemExit('Expected two manifest icons')
+          manifest['icons'][0]['src'] = 'icon-192.png?v=official-zip-r2'
+          manifest['icons'][0]['sizes'] = '192x192'
+          manifest['icons'][1]['src'] = 'icon-512.png?v=official-zip-r2'
+          manifest['icons'][1]['sizes'] = '512x512'
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+
+          for file_name in ['scripts/build-web.mjs', 'scripts/build-mobile.mjs']:
+              path = Path(file_name)
+              text = path.read_text()
+              old_decl = "const officialIosIcon1024 = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';\nfor (const source of [officialAndroidIcon192, officialIosIcon1024]) {"
+              new_decl = "const officialIosIcon1024 = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';\nconst officialPwaIcon512 = 'assets/pwa/icon-512.png';\nfor (const source of [officialAndroidIcon192, officialIosIcon1024, officialPwaIcon512]) {"
+              if old_decl not in text:
+                  raise SystemExit(f'Expected icon source declaration not found in {file_name}')
+              text = text.replace(old_decl, new_decl, 1)
+              old_copy = "cpSync(officialAndroidIcon192, `${out}/icon-192.png`);\ncpSync(officialIosIcon1024, `${out}/icon-512.png`);\ncpSync(officialAndroidIcon192, `${out}/apple-touch-icon.png`);"
+              new_copy = "cpSync(officialAndroidIcon192, `${out}/icon-192.png`);\ncpSync(officialPwaIcon512, `${out}/icon-512.png`);\ncpSync(officialAndroidIcon192, `${out}/apple-touch-icon.png`);"
+              if old_copy not in text:
+                  raise SystemExit(f'Expected icon copy block not found in {file_name}')
+              text = text.replace(old_copy, new_copy, 1)
+              path.write_text(text)
+
+          test_path = Path('test/pwa-official-icon.test.js')
+          test = test_path.read_text()
+          test = test.replace(
+              "const OFFICIAL_IOS = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';\nconst HEADER_LOGO = 'logo.png';",
+              "const OFFICIAL_IOS = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';\nconst PWA_ICON_512 = 'assets/pwa/icon-512.png';\nconst HEADER_LOGO = 'logo.png';",
+              1,
+          )
+          test = test.replace(
+              "  if (path === HEADER_LOGO) return true;\n  if (path.startsWith('android/app/src/main/res/mipmap-')) return true;",
+              "  if (path === HEADER_LOGO || path === PWA_ICON_512) return true;\n  if (path.startsWith('android/app/src/main/res/mipmap-')) return true;",
+              1,
+          )
+          test = test.replace(
+              "  assert.equal(existsSync(OFFICIAL_IOS), true);\n  assert.equal(existsSync(HEADER_LOGO), true);",
+              "  assert.equal(existsSync(OFFICIAL_IOS), true);\n  assert.equal(existsSync(PWA_ICON_512), true);\n  assert.equal(existsSync(HEADER_LOGO), true);",
+              1,
+          )
+          test = test.replace("icon-192.png?v=official-zip-r1", "icon-192.png?v=official-zip-r2")
+          test = test.replace("icon-512.png?v=official-zip-r1", "icon-512.png?v=official-zip-r2")
+          test = test.replace("assert.equal(manifest.icons[1].sizes, '1024x1024');", "assert.equal(manifest.icons[1].sizes, '512x512');")
+          marker = "test('web and mobile builds copy exact approved package assets without generating artwork', () => {"
+          dimension_test = "test('PWA install icon is an exact 512x512 PNG derivative', () => {\n  const png = readFileSync(PWA_ICON_512);\n  assert.equal(png.toString('ascii', 1, 4), 'PNG');\n  assert.equal(png.readUInt32BE(16), 512);\n  assert.equal(png.readUInt32BE(20), 512);\n});\n\n"
+          if marker not in test:
+              raise SystemExit('Expected PWA build test marker not found')
+          test = test.replace(marker, dimension_test + marker, 1)
+          test_path.write_text(test)
+          PY
+
+      - name: Validate PWA contract and project gates
+        run: |
+          npm ci --ignore-scripts --no-fund
+          node --test test/pwa-official-icon.test.js
+          npm run build
+          npm run build:mobile
+          node --test test/pwa-official-icon.test.js
+          npm run gate
+
+      - name: Commit bounded remediation and remove temporary workflow
+        run: |
+          rm .github/workflows/pwa-installability-r2.yml
+          git status --short
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: make PWA manifest installable with exact 512 icon'
+          git push origin HEAD:fix/pwa-installability-r2
