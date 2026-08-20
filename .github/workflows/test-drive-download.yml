@@ -1,0 +1,19 @@
+name: Test Drive AppIcons Transfer
+on:
+  push:
+    branches: [teki/test-drive-icon-import]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official AppIcons zip
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 2 -o /tmp/AppIcons.zip 'https://drive.usercontent.google.com/download?id=1RNCBaWGad_d9wJHT4Mk1q6IHskSXCdmA&export=download&confirm=t'
+          ls -l /tmp/AppIcons.zip
+          sha256sum /tmp/AppIcons.zip
+          test "$(stat -c%s /tmp/AppIcons.zip)" = "5316497"
+          unzip -l /tmp/AppIcons.zip | head -80
