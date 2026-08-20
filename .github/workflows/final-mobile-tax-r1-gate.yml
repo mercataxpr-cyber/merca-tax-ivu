@@ -144,6 +144,20 @@ jobs:
           echo "ANDROID_AAB_SHA256=$(shasum -a 256 "$AAB" | awk '{print $1}')"
           echo "ANDROID_PACKAGED_RUNTIME_PARITY=PASS"
 
+      - name: Verify Android Store manifest guardrails
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eq '^targetSdkVersion = 36$' android/variables.gradle
+          MERGED_MANIFEST="$(find android/app/build/intermediates -path '*release*' -name AndroidManifest.xml | grep '/merged' | head -n 1 || true)"
+          test -n "$MERGED_MANIFEST"
+          grep -q 'android.permission.INTERNET' "$MERGED_MANIFEST"
+          grep -q 'android:allowBackup="false"' "$MERGED_MANIFEST"
+          grep -q 'android:fullBackupContent="false"' "$MERGED_MANIFEST"
+          ! grep -Eq 'android.permission.(CAMERA|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_CONTACTS|WRITE_CONTACTS|RECORD_AUDIO|READ_PHONE_STATE|READ_CALL_LOG|WRITE_CALL_LOG)' "$MERGED_MANIFEST"
+          echo "ANDROID_TARGET_SDK_36=PASS"
+          echo "ANDROID_SENSITIVE_PERMISSION_GUARDRAIL=PASS"
+
       - name: Build iOS Debug simulator
         shell: bash
         run: |
@@ -162,7 +176,7 @@ jobs:
           test -d /tmp/mercatax-derived-release/Build/Products/Release-iphonesimulator/App.app
           echo "IOS_RELEASE_SIMULATOR=PASS"
 
-      - name: Verify iOS packaged runtime and privacy manifest
+      - name: Verify iOS simulator packaged runtime and privacy manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -179,8 +193,27 @@ jobs:
           grep -q 'CA92.1' "$APP/PrivacyInfo.xcprivacy"
           grep -q 'NSPrivacyAccessedAPICategoryFileTimestamp' "$APP/PrivacyInfo.xcprivacy"
           grep -q 'C617.1' "$APP/PrivacyInfo.xcprivacy"
-          echo "IOS_PACKAGED_RUNTIME_PARITY=PASS"
-          echo "IOS_PRIVACY_MANIFEST=PASS"
+          echo "IOS_SIMULATOR_RUNTIME_PARITY=PASS"
+          echo "IOS_SIMULATOR_PRIVACY_MANIFEST=PASS"
+
+      - name: Archive unsigned iOS Release for device
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/MercaTaxIVUPR.xcarchive
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/MercaTaxIVUPR.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO archive
+          APP="/tmp/MercaTaxIVUPR.xcarchive/Products/Applications/App.app"
+          test -d "$APP"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "com.mercatax.ivupr"
+          test -f "$APP/public/index.html"
+          test -f "$APP/PrivacyInfo.xcprivacy"
+          cmp www/index.html "$APP/public/index.html"
+          grep -q 'NSPrivacyAccessedAPICategoryUserDefaults' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'CA92.1' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'NSPrivacyAccessedAPICategoryFileTimestamp' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'C617.1' "$APP/PrivacyInfo.xcprivacy"
+          echo "IOS_UNSIGNED_DEVICE_ARCHIVE=PASS"
+          echo "IOS_DEVICE_ARCHIVE_PRIVACY=PASS"
 
       - name: Clean-launch integrated iOS candidate
         shell: bash
@@ -188,9 +221,21 @@ jobs:
           set -euo pipefail
           UDID="$(xcrun simctl list devices available | grep -m1 'iPhone' | grep -Eo '[0-9A-F-]{36}' || true)"
           test -n "$UDID"
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl install "$UDID" /tmp/mercatax-derived-release/Build/Products/Release-iphonesimulator/App.app
+          python3 - "$UDID" <<'PY'
+          import subprocess, sys, time
+          udid = sys.argv[1]
+          subprocess.run(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          deadline = time.time() + 180
+          while time.time() < deadline:
+              out = subprocess.run(["xcrun", "simctl", "list", "devices"], capture_output=True, text=True, check=True).stdout
+              line = next((line for line in out.splitlines() if udid in line), "")
+              if "(Booted)" in line:
+                  sys.exit(0)
+              time.sleep(2)
+          raise SystemExit("Simulator did not reach Booted state within certification bound")
+          PY
+          APP="/tmp/mercatax-derived-release/Build/Products/Release-iphonesimulator/App.app"
+          xcrun simctl install "$UDID" "$APP"
           FIRST="$(xcrun simctl launch "$UDID" com.mercatax.ivupr)"
           echo "$FIRST" | grep -q 'com.mercatax.ivupr:'
           xcrun simctl terminate "$UDID" com.mercatax.ivupr
