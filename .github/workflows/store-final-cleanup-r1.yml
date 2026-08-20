@@ -34,10 +34,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin ops/store-final-cleanup-r1:refs/remotes/origin/ops/store-final-cleanup-r1
-          test "$(git rev-parse origin/ops/store-final-cleanup-r1)" = "24d667f6880f885a8498f8fd5930732f3f5b1278"
-          git show origin/ops/store-final-cleanup-r1:package.json > package.json
-          git show origin/ops/store-final-cleanup-r1:package-lock.json > package-lock.json
+          CLEAN_LOCK_COMMIT="24d667f6880f885a8498f8fd5930732f3f5b1278"
+          git fetch origin "$CLEAN_LOCK_COMMIT" --no-tags
+          git cat-file -e "${CLEAN_LOCK_COMMIT}^{commit}"
+          git show "${CLEAN_LOCK_COMMIT}:package.json" > package.json
+          git show "${CLEAN_LOCK_COMMIT}:package-lock.json" > package-lock.json
           ! grep -q '"@capacitor/assets"' package.json
           ! grep -q 'node_modules/@capacitor/assets' package-lock.json
           ! grep -q 'node_modules/@capacitor/assets/node_modules/tar' package-lock.json
