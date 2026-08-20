@@ -1,9 +1,9 @@
 name: Netlify Icon Fix Bundle
 
 on:
-  push:
+  pull_request:
     branches:
-      - teki/netlify-iconfix-bundle-e1f15a
+      - mobi/r2-final-parity-gate-remediation
 
 jobs:
   bundle:
@@ -48,5 +48,3 @@ jobs:
           path: MercaTax-IVU-PR-Netlify-ICON-FIX.zip
           if-no-files-found: error
           retention-days: 7
-
-# trigger packaging after PR creation
