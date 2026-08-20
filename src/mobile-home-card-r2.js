@@ -111,7 +111,8 @@
     const dueIso = presentation && (presentation.effectiveDate || presentation.regularDate);
     if (!dueIso || !/^\d{4}-\d{2}-\d{2}$/.test(dueIso)) return;
 
-    value.textContent = String(Number(dueIso.slice(-2)));
+    const dueDay = String(Number(dueIso.slice(-2)));
+    if (value.textContent !== dueDay) value.textContent = dueDay;
     value.dataset.dueSource = presentation.effectiveDate ? 'certified-effective-date' : 'regular-date';
     value.title = presentation.effectiveDate
       ? `Fecha efectiva certificada: ${presentation.effectiveDate}`
