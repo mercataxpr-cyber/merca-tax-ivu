@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   certify-integrated-candidate:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 50
 
     steps:
@@ -56,6 +56,20 @@ jobs:
           echo "TAX_ANCESTOR=$TAX"
           echo "R2_BASE_ANCESTOR=e54ceda5be6751600127abeeb28853002a4eaf02"
           echo "MAIN_ISOLATION=PASS"
+
+      - name: Verify App Store Xcode and iOS SDK floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE_VERSION="$(xcodebuild -version | awk '/^Xcode / {print $2}')"
+          IOS_SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          XCODE_MAJOR="${XCODE_VERSION%%.*}"
+          IOS_SDK_MAJOR="${IOS_SDK_VERSION%%.*}"
+          test "$XCODE_MAJOR" -ge 26
+          test "$IOS_SDK_MAJOR" -ge 26
+          echo "XCODE_VERSION=$XCODE_VERSION"
+          echo "IOS_SDK_VERSION=$IOS_SDK_VERSION"
+          echo "APP_STORE_TOOLCHAIN_FLOOR=PASS"
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
