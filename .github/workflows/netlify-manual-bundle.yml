@@ -1,0 +1,45 @@
+name: Netlify Manual Bundle
+
+on:
+  push:
+    branches:
+      - teki/netlify-manual-bundle-9dd8878
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Verify Netlify payload
+        run: |
+          test -f public/index.html
+          test -f public/src/mobile-vnext-ui.js
+          test -f public/src/mobile-home-card-r2.js
+          test -f public/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+
+      - name: Create manual Netlify ZIP
+        run: |
+          cd public
+          zip -r ../mercatax-ivu-netlify-manual.zip .
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-ivu-netlify-manual
+          path: mercatax-ivu-netlify-manual.zip
+          if-no-files-found: error
+          retention-days: 7
