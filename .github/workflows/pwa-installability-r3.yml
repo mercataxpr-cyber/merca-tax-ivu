@@ -1,0 +1,167 @@
+name: PWA Installability R3
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    if: github.event.pull_request.head.ref == 'fix/pwa-installability-r3' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Verify frozen base
+        run: |
+          git merge-base --is-ancestor e3199251f898d0e45215e56c5def30bc0fcf9ab7 HEAD
+          test "$(git rev-parse origin/release/store-ready-r1-candidate)" = "e3199251f898d0e45215e56c5def30bc0fcf9ab7"
+
+      - name: Generate exact 512px derivative from approved AppIcon
+        run: |
+          python3 -m pip install --disable-pip-version-check --quiet 'Pillow==11.3.0'
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          source = Path('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png')
+          output = Path('assets/pwa/icon-512.png')
+          output.parent.mkdir(parents=True, exist_ok=True)
+          with Image.open(source) as image:
+              if image.size != (1024, 1024):
+                  raise SystemExit(f'Expected approved 1024x1024 AppIcon, got {image.size}')
+              image.convert('RGBA').resize((512, 512), Image.Resampling.LANCZOS).save(output, format='PNG', optimize=False)
+          with Image.open(output) as check:
+              if check.size != (512, 512):
+                  raise SystemExit(f'Generated PWA icon has wrong size: {check.size}')
+          print('Generated exact 512x512 derivative from approved AppIcon')
+          PY
+
+      - name: Update manifest, browser metadata and build contracts
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest_path = Path('manifest.json')
+          manifest = json.loads(manifest_path.read_text())
+          if len(manifest.get('icons', [])) < 2:
+              raise SystemExit('Expected at least two manifest icons')
+          manifest['icons'][0].update({
+              'src': 'icon-192.png?v=official-zip-r2',
+              'sizes': '192x192',
+              'type': 'image/png',
+              'purpose': 'any',
+          })
+          manifest['icons'][1].update({
+              'src': 'icon-512.png?v=official-zip-r2',
+              'sizes': '512x512',
+              'type': 'image/png',
+              'purpose': 'any',
+          })
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+
+          for file_name in ['scripts/build-web.mjs', 'scripts/build-mobile.mjs']:
+              path = Path(file_name)
+              text = path.read_text()
+              old_decl = "const officialIosIcon1024 = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';\nfor (const source of [officialAndroidIcon192, officialIosIcon1024]) {"
+              new_decl = "const officialIosIcon1024 = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';\nconst officialPwaIcon512 = 'assets/pwa/icon-512.png';\nfor (const source of [officialAndroidIcon192, officialIosIcon1024, officialPwaIcon512]) {"
+              if old_decl not in text:
+                  raise SystemExit(f'Expected icon source declaration not found in {file_name}')
+              text = text.replace(old_decl, new_decl, 1)
+              old_copy = "cpSync(officialAndroidIcon192, `${out}/icon-192.png`);\ncpSync(officialIosIcon1024, `${out}/icon-512.png`);\ncpSync(officialAndroidIcon192, `${out}/apple-touch-icon.png`);"
+              new_copy = "cpSync(officialAndroidIcon192, `${out}/icon-192.png`);\ncpSync(officialPwaIcon512, `${out}/icon-512.png`);\ncpSync(officialAndroidIcon192, `${out}/apple-touch-icon.png`);"
+              if old_copy not in text:
+                  raise SystemExit(f'Expected icon copy block not found in {file_name}')
+              text = text.replace(old_copy, new_copy, 1)
+
+              if file_name.endswith('build-web.mjs'):
+                  old_index = "writeFileSync(\n  `${out}/index.html`,\n  injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8'))),\n);"
+                  new_index = "let preparedIndex = injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')));\npreparedIndex = preparedIndex\n  .replace('href=\\\"manifest.json\\\"', 'href=\\\"manifest.json?v=pwa-r2\\\"')\n  .replace('href=\\\"assets/apple-touch-icon.png\\\"', 'href=\\\"apple-touch-icon.png\\\"')\n  .replace(/<link rel=\\\"icon\\\" href=\\\"data:image\\/png;base64,[^\\\"]+\\\">/, '<link rel=\\\"icon\\\" type=\\\"image/png\\\" sizes=\\\"192x192\\\" href=\\\"icon-192.png?v=official-zip-r2\\\">');\nif (!preparedIndex.includes('manifest.json?v=pwa-r2') || !preparedIndex.includes('apple-touch-icon.png') || !preparedIndex.includes('icon-192.png?v=official-zip-r2')) {\n  throw new Error('PWA browser metadata normalization failed');\n}\nwriteFileSync(`${out}/index.html`, preparedIndex);"
+              else:
+                  old_index = "const preparedIndex = stripWebAnalyticsForNative(\n  injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')))\n);\nwriteFileSync(`${out}/index.html`, preparedIndex);"
+                  new_index = "let preparedIndex = stripWebAnalyticsForNative(\n  injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')))\n);\npreparedIndex = preparedIndex\n  .replace('href=\\\"manifest.json\\\"', 'href=\\\"manifest.json?v=pwa-r2\\\"')\n  .replace('href=\\\"assets/apple-touch-icon.png\\\"', 'href=\\\"apple-touch-icon.png\\\"')\n  .replace(/<link rel=\\\"icon\\\" href=\\\"data:image\\/png;base64,[^\\\"]+\\\">/, '<link rel=\\\"icon\\\" type=\\\"image/png\\\" sizes=\\\"192x192\\\" href=\\\"icon-192.png?v=official-zip-r2\\\">');\nif (!preparedIndex.includes('manifest.json?v=pwa-r2') || !preparedIndex.includes('apple-touch-icon.png') || !preparedIndex.includes('icon-192.png?v=official-zip-r2')) {\n  throw new Error('PWA browser metadata normalization failed');\n}\nwriteFileSync(`${out}/index.html`, preparedIndex);"
+              if old_index not in text:
+                  raise SystemExit(f'Expected index build block not found in {file_name}')
+              text = text.replace(old_index, new_index, 1)
+              path.write_text(text)
+
+          test_path = Path('test/pwa-official-icon.test.js')
+          test = test_path.read_text()
+          test = test.replace(
+              "const OFFICIAL_IOS = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';\nconst HEADER_LOGO = 'logo.png';",
+              "const OFFICIAL_IOS = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';\nconst PWA_ICON_512 = 'assets/pwa/icon-512.png';\nconst HEADER_LOGO = 'logo.png';",
+              1,
+          )
+          test = test.replace(
+              "  if (path === HEADER_LOGO) return true;",
+              "  if (path === HEADER_LOGO || path === PWA_ICON_512) return true;",
+              1,
+          )
+          test = test.replace(
+              "  assert.equal(existsSync(OFFICIAL_IOS), true);\n  assert.equal(existsSync(HEADER_LOGO), true);",
+              "  assert.equal(existsSync(OFFICIAL_IOS), true);\n  assert.equal(existsSync(PWA_ICON_512), true);\n  assert.equal(existsSync(HEADER_LOGO), true);",
+              1,
+          )
+          test = test.replace('official-zip-r1', 'official-zip-r2')
+          test = test.replace("assert.equal(manifest.icons[1].sizes, '1024x1024');", "assert.equal(manifest.icons[1].sizes, '512x512');")
+          marker = "test('web and mobile builds copy exact approved package assets without generating artwork', () => {"
+          dimension_test = "test('PWA install icon is an exact 512x512 PNG derivative', () => {\n  const png = readFileSync(PWA_ICON_512);\n  assert.equal(png.toString('ascii', 1, 4), 'PNG');\n  assert.equal(png.readUInt32BE(16), 512);\n  assert.equal(png.readUInt32BE(20), 512);\n});\n\n"
+          if marker not in test:
+              raise SystemExit('Expected icon build test marker not found')
+          test = test.replace(marker, dimension_test + marker, 1)
+          test_path.write_text(test)
+          PY
+
+      - name: Validate exact PWA resources and full project gate
+        run: |
+          npm ci --ignore-scripts --no-fund
+          node --test test/pwa-official-icon.test.js
+          npm run build
+          npm run mobile:build
+          node --test test/pwa-official-icon.test.js
+          node - <<'NODE'
+          const fs = require('node:fs');
+          function dimensions(path) {
+            const png = fs.readFileSync(path);
+            return [png.readUInt32BE(16), png.readUInt32BE(20)];
+          }
+          for (const path of ['assets/pwa/icon-512.png', 'public/icon-512.png', 'www/icon-512.png']) {
+            const [w, h] = dimensions(path);
+            if (w !== 512 || h !== 512) throw new Error(`${path} is ${w}x${h}, expected 512x512`);
+          }
+          for (const path of ['public/index.html', 'www/index.html']) {
+            const html = fs.readFileSync(path, 'utf8');
+            for (const expected of ['manifest.json?v=pwa-r2', 'apple-touch-icon.png', 'icon-192.png?v=official-zip-r2']) {
+              if (!html.includes(expected)) throw new Error(`${path} missing ${expected}`);
+            }
+          }
+          NODE
+          npm run gate
+
+      - name: Enforce bounded diff
+        run: |
+          rm .github/workflows/pwa-installability-r3.yml
+          actual="$(git diff --name-only e3199251f898d0e45215e56c5def30bc0fcf9ab7 | sort)"
+          expected="$(printf '%s\n' \
+            assets/pwa/icon-512.png \
+            manifest.json \
+            scripts/build-mobile.mjs \
+            scripts/build-web.mjs \
+            test/pwa-official-icon.test.js | sort)"
+          test "$actual" = "$expected" || { echo 'Unexpected PWA remediation diff'; printf 'ACTUAL:\n%s\nEXPECTED:\n%s\n' "$actual" "$expected"; exit 1; }
+          git status --short
+
+      - name: Commit validated remediation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: make Chrome PWA install metadata valid'
+          git push origin HEAD:${{ github.head_ref }}
