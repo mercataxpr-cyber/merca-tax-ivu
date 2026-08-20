@@ -47,9 +47,21 @@ cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
 // Capacitor must consume the same TAX-prepared runtime served by server.js.
 // Reuse the certified transform module directly; do not duplicate TAX rules here.
-const preparedIndex = stripWebAnalyticsForNative(
+let preparedIndex = stripWebAnalyticsForNative(
   injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')))
 );
+preparedIndex = preparedIndex
+  .replace(
+    '<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">',
+    '<link rel="apple-touch-icon" href="apple-touch-icon.png">',
+  )
+  .replace(
+    /<link rel="icon" href="data:image\/png;base64,[^"]+">/,
+    '<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">',
+  );
+if (!preparedIndex.includes('href="apple-touch-icon.png"') || !preparedIndex.includes('href="icon-192.png"')) {
+  throw new Error('Approved MercaTax browser install icon metadata was not applied');
+}
 writeFileSync(`${out}/index.html`, preparedIndex);
 writeFileSync(`${out}/src/app.js`, transformAppSource(readFileSync('src/app.js', 'utf8')));
 
