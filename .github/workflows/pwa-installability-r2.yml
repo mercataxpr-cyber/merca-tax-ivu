@@ -103,7 +103,7 @@ jobs:
           npm ci --ignore-scripts --no-fund
           node --test test/pwa-official-icon.test.js
           npm run build
-          npm run build:mobile
+          npm run mobile:build
           node --test test/pwa-official-icon.test.js
           npm run gate
 
