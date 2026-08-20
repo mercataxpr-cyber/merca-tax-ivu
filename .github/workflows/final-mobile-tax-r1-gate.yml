@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: final-mobile-tax-r1-${{ github.ref }}
+  group: final-mobile-tax-r1-${{ github.event_name }}-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
