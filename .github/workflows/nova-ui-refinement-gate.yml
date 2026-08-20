@@ -1,6 +1,9 @@
 name: NOVA UI Refinement Gate
 
 on:
+  push:
+    branches:
+      - nova/ui-refinement-r1-final
   pull_request:
     branches:
       - mobi/r2-final-parity-gate-remediation
