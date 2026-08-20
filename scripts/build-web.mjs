@@ -43,11 +43,24 @@ const reportLogoDir = `${out}/ios/App/App/Assets.xcassets/AppIcon.appiconset`;
 mkdirSync(reportLogoDir, { recursive: true });
 cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
+// Static hosting must expose only the approved AppIcon aliases to browsers.
+// The source HTML still contains legacy install metadata, so normalize it at build time.
+let preparedIndex = injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')));
+preparedIndex = preparedIndex
+  .replace(
+    '<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">',
+    '<link rel="apple-touch-icon" href="apple-touch-icon.png">',
+  )
+  .replace(
+    /<link rel="icon" href="data:image\/png;base64,[^"]+">/,
+    '<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">',
+  );
+if (!preparedIndex.includes('href="apple-touch-icon.png"') || !preparedIndex.includes('href="icon-192.png"')) {
+  throw new Error('Approved MercaTax browser install icon metadata was not applied');
+}
+
 // Static hosting must serve the same certified TAX runtime as server.js.
-writeFileSync(
-  `${out}/index.html`,
-  injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8'))),
-);
+writeFileSync(`${out}/index.html`, preparedIndex);
 writeFileSync(
   `${out}/src/app.js`,
   transformAppSource(readFileSync('src/app.js', 'utf8')),
