@@ -18,6 +18,16 @@
     document.head.appendChild(element);
   }
 
+  function loadHomeCardRefinement() {
+    const element = document.createElement('script');
+    element.src = new URL('src/mobile-home-card-r2.js', baseUrl).href;
+    element.async = false;
+    element.onerror = () => {
+      throw new Error('Failed to load src/mobile-home-card-r2.js');
+    };
+    document.head.appendChild(element);
+  }
+
   function start() {
     load('src/domain.js', () =>
       load('src/tax-remediation.js', () =>
@@ -25,7 +35,7 @@
           load('src/tax-ui-bridge.js', () =>
             load('src/app.js', () =>
               load('src/mobile-r1-ui.js', () =>
-                load('src/mobile-vnext-ui.js', () => {})))))));
+                load('src/mobile-vnext-ui.js', loadHomeCardRefinement)))))));
   }
 
   if (document.readyState === 'loading') {
