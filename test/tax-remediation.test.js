@@ -143,6 +143,12 @@ test('rounding rule is certified to Puerto Rico Treasury half-cent policy', () =
   assert.equal(domain.ROUNDING_POLICY.added, 'REGULATORY_HALF_CENT_RULE');
 });
 
+test('currency helper enforces the official half-cent edge', () => {
+  assert.equal(domain.roundCurrency(0.0049), 0);
+  assert.equal(domain.roundCurrency(0.005), 0.01);
+  assert.equal(domain.roundCurrency(1.005), 1.01);
+});
+
 test('11.5% added IVU follows the official half-cent boundary', () => {
   assert.equal(domain.calculateTaxAdded(0.04, 'GENERAL_11_5').ivu, 0);
   assert.equal(domain.calculateTaxAdded(0.05, 'GENERAL_11_5').ivu, 0.01);
