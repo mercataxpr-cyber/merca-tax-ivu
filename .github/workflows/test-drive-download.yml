@@ -17,3 +17,5 @@ jobs:
           sha256sum /tmp/AppIcons.zip
           test "$(stat -c%s /tmp/AppIcons.zip)" = "5316497"
           unzip -l /tmp/AppIcons.zip | head -80
+
+# synchronize probe
