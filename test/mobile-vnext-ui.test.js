@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const ui = readFileSync('src/mobile-vnext-ui.js', 'utf8');
 const build = readFileSync('scripts/build.mjs', 'utf8');
+const buildMobile = readFileSync('scripts/build-mobile.mjs', 'utf8');
+const buildWeb = readFileSync('scripts/build-web.mjs', 'utf8');
+const reportLogo = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
 
 test('vNext UI is loaded after the existing mobile UI bridge', () => {
   assert.match(build, /src\/mobile-r1-ui\.js/);
@@ -43,4 +46,14 @@ test('destructive history actions preserve existing confirmation flows', () => {
 test('AI report CTA cannot simulate a successful operation', () => {
   assert.match(ui, /class=\"vxAi\" disabled/);
   assert.match(ui, /Próximamente/);
+});
+
+
+test('report branding uses the approved 1024px AppIcon and packages it for web/mobile', () => {
+  assert.equal(existsSync(reportLogo), true);
+  assert.match(ui, /REPORT_LOGO_PATH='ios\/App\/App\/Assets\.xcassets\/AppIcon\.appiconset\/AppIcon-512@2x\.png'/);
+  assert.match(ui, /MercaTax IVU PR<\/strong><span>Organización Financiera/);
+  assert.doesNotMatch(ui, /REPORT_LOGO_PATH=['"]assets\/logo\.png/);
+  assert.ok(buildMobile.includes(reportLogo));
+  assert.ok(buildWeb.includes(reportLogo));
 });

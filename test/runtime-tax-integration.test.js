@@ -155,6 +155,7 @@ async function loadServedRuntime(base) {
     '/src/tax-ui-bridge.js',
     '/src/app.js',
     '/src/mobile-r1-ui.js',
+    '/src/mobile-vnext-ui.js',
   ]);
 
   const browser = fakeBrowser();
@@ -169,6 +170,11 @@ async function loadServedRuntime(base) {
     }
     if (scriptPath === '/src/mobile-r1-ui.js') {
       assert.doesNotMatch(source, /window\.sendLocalReminder|faltan ['" ]*\+ *days|IVU estatal 10\.5%|IVU municipal 1%|radicar antes del día 20/i);
+    }
+    if (scriptPath === '/src/mobile-vnext-ui.js') {
+      assert.doesNotMatch(source, /sendLocalReminder\s*=|20-today\.getDate|days=20-d|radicar antes del día 20/i);
+      assert.match(source, /MercaTaxDomain\.calculateTaxAdded/);
+      assert.match(source, /MercaTaxDomain\.calculateTaxIncluded/);
     }
     vm.runInContext(source, browser.context, { filename: scriptPath });
     if (scriptPath === '/src/app.js') certifiedReminderSource = String(browser.context.sendLocalReminder);
@@ -342,7 +348,7 @@ test('served runtime uses certified effectiveDate for period, weekend, nonWorkin
 
 test('complete served loader preserves certified April 2026 reminder after mobile UI', async () => withServer(async (base) => {
   const { context, element, notifications, paths } = await loadServedRuntime(base);
-  assert.equal(paths.at(-1), '/src/mobile-r1-ui.js');
+  assert.equal(paths.at(-1), '/src/mobile-vnext-ui.js');
 
   element('date').value = '2026-04-10';
   element('amount').value = '111.50';

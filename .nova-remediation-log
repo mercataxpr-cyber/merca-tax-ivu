@@ -1,0 +1,17 @@
+UPDATED: vNext report branding
+UPDATED: install report branding at boot
+UPDATED: package report logo in scripts/build-mobile.mjs
+UPDATED: package report logo in scripts/build-web.mjs
+UPDATED: runtime loader path contract
+UPDATED: runtime final loader assertion
+UPDATED: vNext runtime safety assertions
+UPDATED: report branding regression test
+UPDATED: NOVA packaging evidence gate
+Changed files:
+- .github/workflows/nova-ui-refinement-gate.yml
+- scripts/build-mobile.mjs
+- scripts/build-web.mjs
+- src/mobile-vnext-ui.js
+- test/mobile-vnext-ui.test.js
+- test/runtime-tax-integration.test.js
+exit_code=0

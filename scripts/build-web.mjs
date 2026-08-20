@@ -27,6 +27,13 @@ for (const dir of ['assets', 'src']) {
   if (existsSync(dir)) cpSync(dir, `${out}/${dir}`, { recursive: true });
 }
 
+// Preserve the approved 1024px store AppIcon for branded report preview/print/export.
+const reportLogoSource = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
+if (!existsSync(reportLogoSource)) throw new Error('Approved MercaTax report logo asset is missing');
+const reportLogoDir = `${out}/ios/App/App/Assets.xcassets/AppIcon.appiconset`;
+mkdirSync(reportLogoDir, { recursive: true });
+cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
+
 // Static hosting must serve the same certified TAX runtime as server.js.
 writeFileSync(
   `${out}/index.html`,

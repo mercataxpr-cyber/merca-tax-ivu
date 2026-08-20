@@ -139,7 +139,29 @@
   root.vxSaveBusiness=()=>{const b=biz(),name=($('vxBizName')?.value||'').trim();if(!name)return toast('Ingrese el nombre del negocio');b.name=name;b.muni=$('vxBizMuni')?.value||b.muni;b.merchantNo=($('vxBizMerchant')?.value||'').trim();b.email=($('vxBizEmail')?.value||'').trim();save();render();closeDialog();toast('Perfil del negocio actualizado');};
   root.vxLanguage=()=>{const m=$('menu');if(m)m.style.display='none';showDialog('vxLanguage');$('modalTitle').textContent='Idioma';$('modalBody').innerHTML='<p><b>Español (ES)</b> es el idioma activo de MercaTax IVU PR.</p>';$('modalActions').innerHTML='<button class="btn dark" onclick="closeDialog()">Entendido</button>';};
 
+  const REPORT_LOGO_PATH='ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
+
+  function installReportBranding(){
+    if(typeof root.reportHtml!=='function'||root.reportHtml.__vxBranded)return;
+    const legacyReportHtml=root.reportHtml;
+    const branded=function(sales){
+      return legacyReportHtml(sales)
+        .replace('<div class="head"><img class="logo" src="assets/logo.png"><div class="title">',`<div class="head"><div class="brandBlock"><img class="logo" src="${REPORT_LOGO_PATH}" alt="MercaTax IVU PR"><div class="brandCopy"><strong>MercaTax IVU PR</strong><span>Organización Financiera</span></div></div><div class="title">`)
+        .replace('.page{width:8.5in;min-height:11in;margin:20px auto;background:#fff;padding:.45in;box-shadow:0 12px 40px rgba(0,0,0,.18)}','.page{width:8.5in;min-height:11in;margin:20px auto;background:#fff;padding:.5in;box-sizing:border-box;box-shadow:0 12px 40px rgba(0,0,0,.16)}')
+        .replace('.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #D4AF37;padding-bottom:16px}','.head{display:flex;justify-content:space-between;align-items:center;gap:24px;border-bottom:3px solid #D4AF37;padding-bottom:18px}.brandBlock{display:flex;align-items:center;gap:14px;min-width:0}.brandCopy{display:flex;flex-direction:column;gap:3px}.brandCopy strong{font-size:18px;letter-spacing:.2px}.brandCopy span{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#7b6a2d}')
+        .replace('.logo{width:220px;max-height:95px;object-fit:contain}','.logo{width:76px;height:76px;object-fit:contain;display:block;flex:0 0 auto}')
+        .replace('.title h1{margin:0;font-size:25px}','.title h1{margin:0;font-size:25px;letter-spacing:.4px}')
+        .replace('.summary{display:grid;grid-template-columns:1fr 310px;gap:20px;margin:22px 0}','.summary{display:grid;grid-template-columns:1fr 310px;gap:24px;margin:24px 0}')
+        .replace('.box{border:1px solid #D7B75A;border-radius:8px;overflow:hidden}','.box{border:1px solid #D7B75A;border-radius:10px;overflow:hidden;background:#fffdf7}')
+        .replace('.line{display:flex;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #eee;font-size:13px}','.line{display:flex;justify-content:space-between;gap:16px;padding:10px 12px;border-bottom:1px solid #eee;font-size:13px}')
+        .replace('.thanks{background:#111;color:#D4AF37;padding:14px 20px;border-radius:4px;font-style:italic}','.thanks{color:#8a6a00;font-weight:700;font-style:italic;padding:8px 0}')
+        .replace('@media print{body{background:#fff}.page{margin:0;box-shadow:none;width:auto;min-height:auto}.actions{display:none}}','@media print{body{background:#fff}.page{margin:0;box-shadow:none;width:auto;min-height:auto}.actions{display:none}.logo{print-color-adjust:exact;-webkit-print-color-adjust:exact}}');
+    };
+    branded.__vxBranded=true;
+    root.reportHtml=branded;
+  }
+
   function wrapRender(){if(root.render?.__vxWrapped)return;const legacy=root.render;if(typeof legacy!=='function')return;const wrapped=function(...args){const out=legacy.apply(this,args);renderAll();return out;};wrapped.__vxWrapped=true;root.render=wrapped;}
-  function boot(){installCss();if(!ensureShell())return;rebuildNav();rebuildMenu();wrapRender();renderAll();root.addEventListener('mercatax:native-ready',renderAll);}
+  function boot(){installCss();installReportBranding();if(!ensureShell())return;rebuildNav();rebuildMenu();wrapRender();renderAll();root.addEventListener('mercatax:native-ready',renderAll);}
   boot();
 }(window));
