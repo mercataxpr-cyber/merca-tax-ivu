@@ -16,9 +16,6 @@ const files = [
   'privacy.html',
   'terms.html',
   'legal-links.js',
-  'icon-192.png',
-  'icon-512.png',
-  'apple-touch-icon.png',
   'logo.png'
 ];
 
@@ -28,6 +25,25 @@ for (const file of files) {
 for (const dir of ['assets', 'src']) {
   if (existsSync(dir)) cpSync(dir, `${out}/${dir}`, { recursive: true });
 }
+
+// Source of truth: only assets from the user-approved AppIcons package.
+const officialAndroidIcon192 = 'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png';
+const officialIosIcon1024 = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
+for (const source of [officialAndroidIcon192, officialIosIcon1024]) {
+  if (!existsSync(source)) throw new Error(`Approved MercaTax icon asset is missing: ${source}`);
+}
+
+// Runtime aliases are exact byte-for-byte copies of approved package assets.
+// No alternate icon artwork is stored at repository root.
+cpSync(officialAndroidIcon192, `${out}/icon-192.png`);
+cpSync(officialIosIcon1024, `${out}/icon-512.png`);
+cpSync(officialAndroidIcon192, `${out}/apple-touch-icon.png`);
+
+// Preserve the approved 1024px AppIcon for branded report preview/print/export.
+const reportLogoSource = officialIosIcon1024;
+const reportLogoDir = `${out}/ios/App/App/Assets.xcassets/AppIcon.appiconset`;
+mkdirSync(reportLogoDir, { recursive: true });
+cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
 // Capacitor must consume the same TAX-prepared runtime served by server.js.
 // Reuse the certified transform module directly; do not duplicate TAX rules here.
@@ -58,4 +74,4 @@ if (!html.includes('mobile-native.js')) {
   writeFileSync(indexPath, html);
 }
 
-console.log('Mobile web bundle ready in www/ with certified TAX transforms, legal pages, native analytics parity and native bridge.');
+console.log('Mobile web bundle ready in www/ with certified TAX transforms, legal pages, native analytics parity, native bridge and approved AppIcons-only install assets.');
