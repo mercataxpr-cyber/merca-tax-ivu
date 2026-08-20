@@ -42,3 +42,5 @@ jobs:
           path: pwa-icon-fix/
           if-no-files-found: error
           retention-days: 1
+
+# packaging helper only; never merge this temporary branch
