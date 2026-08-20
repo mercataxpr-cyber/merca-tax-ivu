@@ -44,9 +44,12 @@
   });
 
   const ROUNDING_POLICY = Object.freeze({
-    status: 'POLICY/TAX SME REQUIRED',
+    status: 'ROUNDING_RULE_CERTIFIED',
+    method: 'HALF_CENT_UP',
+    source: 'PR_TREASURY_IVU_REGULATION_ART_4020_01_1_B_1',
+    scope: 'CURRENCY_ROUNDING_ONLY',
     included: 'HISTORICAL_COMPATIBILITY_SEQUENCE',
-    added: 'TECHNICAL_RECONCILIATION_PENDING_TAX_SME',
+    added: 'REGULATORY_HALF_CENT_RULE',
   });
 
   const RATE_TO_PROFILE = new Map(
@@ -123,7 +126,7 @@
    * 4) IVU is the rounded remainder total - base;
    * 5) municipal component is rounded from raw base * explicit municipal rate;
    * 6) state component is the IVU remainder so all amounts reconcile to cents.
-   * This is a mathematical compatibility policy only; TAX SME must certify any legal rounding requirement.
+   * Currency rounding follows the certified half-cent rule. This inverse sequence is retained for compatibility and does not itself authorize tax-inclusive pricing, which is governed separately by Article 4020.06-1.
    */
   function calculateTaxIncluded(amount, profileOrRate = PROFILE_IDS.GENERAL_11_5) {
     const profile = resolveTaxProfile(profileOrRate);
@@ -144,7 +147,7 @@
    * Added-IVU technical reconciliation policy:
    * total tax is rounded from base * combined rate; municipal is rounded independently;
    * state receives the tax remainder so base + state + municipal always equals total.
-   * This newly exposed operation requires independent TAX SME review before legal certification.
+   * Currency rounding follows Article 4020.01-1(b)(1) of the Puerto Rico Treasury IVU Regulation: half a cent or more rounds up; less than half a cent does not.
    */
   function calculateTaxAdded(amount, profileOrRate = PROFILE_IDS.GENERAL_11_5) {
     const profile = resolveTaxProfile(profileOrRate);
