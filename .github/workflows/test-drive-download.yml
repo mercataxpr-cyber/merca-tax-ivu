@@ -1,7 +1,7 @@
 name: Test Drive AppIcons Transfer
 on:
-  push:
-    branches: [teki/test-drive-icon-import]
+  pull_request:
+    branches: [mobi/r2-final-parity-gate-remediation]
 permissions:
   contents: read
 jobs:
