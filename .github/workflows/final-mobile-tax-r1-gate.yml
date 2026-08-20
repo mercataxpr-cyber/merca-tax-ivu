@@ -5,6 +5,7 @@ on:
     branches:
       - integration/mobile-tax-r1-final
       - mobi/r2-final-parity-gate-remediation
+      - release/store-ready-r1-candidate
   workflow_dispatch:
 
 permissions:
@@ -34,7 +35,7 @@ jobs:
           TAX="23a016f08385439943728056319936bc581dece2"
           EXPECTED_MAIN="26bbdc4529ad7d814305ef0e22499e4ab5be75ca"
           case "$GITHUB_REF_NAME" in
-            integration/mobile-tax-r1-final|mobi/r2-final-parity-gate-remediation) ;;
+            integration/mobile-tax-r1-final|mobi/r2-final-parity-gate-remediation|release/store-ready-r1-candidate) ;;
             *) echo "Unexpected certification branch: $GITHUB_REF_NAME" >&2; exit 1 ;;
           esac
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
