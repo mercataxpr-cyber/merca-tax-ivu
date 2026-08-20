@@ -148,7 +148,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Eq '^targetSdkVersion = 36$' android/variables.gradle
+          grep -Eq '^[[:space:]]*targetSdkVersion[[:space:]]*=[[:space:]]*36[[:space:]]*$' android/variables.gradle
           MERGED_MANIFEST="$(find android/app/build/intermediates -path '*release*' -name AndroidManifest.xml | grep '/merged' | head -n 1 || true)"
           test -n "$MERGED_MANIFEST"
           grep -q 'android.permission.INTERNET' "$MERGED_MANIFEST"
@@ -253,7 +253,7 @@ jobs:
           set -euo pipefail
           git diff --exit-code
           git diff --cached --exit-code
-          test -z "$(git status --porcelain --untracked-files=no)"
+          test -z "$(git status --porcelain)"
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           echo "FINAL_INTEGRATION_WORKTREE_CLEAN=PASS"
 
