@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           CLEAN_LOCK_COMMIT="24d667f6880f885a8498f8fd5930732f3f5b1278"
-          git fetch origin "$CLEAN_LOCK_COMMIT" --no-tags
+          git fetch origin ops/store-final-cleanup-r1 --no-tags
           git cat-file -e "${CLEAN_LOCK_COMMIT}^{commit}"
           git show "${CLEAN_LOCK_COMMIT}:package.json" > package.json
           git show "${CLEAN_LOCK_COMMIT}:package-lock.json" > package-lock.json
@@ -117,7 +117,15 @@ jobs:
           npm audit --audit-level=critical
           npm audit --omit=dev --audit-level=high
           git diff --check
-          test -z "$(git status --porcelain --ignored=no | grep -vE '^ M (package.json|package-lock.json|src/tax-remediation.js|test/tax-remediation.test.js|\.gitignore|\.github/workflows/final-mobile-tax-r1-gate.yml)$' || true)"
+          EXPECTED="$(printf '%s\n' \
+            '.github/workflows/final-mobile-tax-r1-gate.yml' \
+            '.gitignore' \
+            'package-lock.json' \
+            'package.json' \
+            'src/tax-remediation.js' \
+            'test/tax-remediation.test.js' | sort)"
+          ACTUAL="$(git diff --name-only | sort)"
+          test "$ACTUAL" = "$EXPECTED"
 
       - name: Commit six bounded fixes to release candidate
         shell: bash
