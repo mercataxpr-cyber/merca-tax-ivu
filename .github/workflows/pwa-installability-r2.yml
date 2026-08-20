@@ -1,3 +1,4 @@
+# Triggered after workflow exists on branch so the remediation run sees the workflow before this push event.
 name: PWA Installability R2
 
 on:
