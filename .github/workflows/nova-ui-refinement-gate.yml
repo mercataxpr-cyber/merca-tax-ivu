@@ -25,6 +25,15 @@ jobs:
       - name: Checkout candidate
         uses: actions/checkout@v4
 
+      - name: Probe approved AppIcons package transfer
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 2 -o /tmp/AppIcons.zip 'https://drive.usercontent.google.com/download?id=1RNCBaWGad_d9wJHT4Mk1q6IHskSXCdmA&export=download&confirm=t'
+          test "$(stat -f%z /tmp/AppIcons.zip)" = "5316497"
+          unzip -t /tmp/AppIcons.zip >/dev/null
+          echo "APPICONS_TRANSFER=PASS"
+
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
