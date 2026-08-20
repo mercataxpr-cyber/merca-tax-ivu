@@ -2,15 +2,16 @@ name: Store Packaging R1 — Signed Android + iOS
 
 on:
   push:
-    branches:
-      - mobi/store-packaging-r1
+    branches: [mobi/store-packaging-r1]
+  pull_request:
+    branches: [release/store-ready-r1-candidate]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: mercatax-store-packaging-r1
+  group: mercatax-store-packaging-r1-${{ github.event_name }}
   cancel-in-progress: false
 
 env:
@@ -35,7 +36,7 @@ jobs:
           set -euo pipefail
           missing=()
           for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
-            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+            [ -n "${!name:-}" ] || missing+=("$name")
           done
           if [ ${#missing[@]} -ne 0 ]; then
             printf 'MISSING_ANDROID_SIGNING_SECRET=%s\n' "${missing[@]}"
@@ -94,11 +95,7 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
           keytool -list -keystore "$KEYSTORE" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
           cp android/app/build/outputs/bundle/release/app-release.aab "$OUT"
-          jarsigner \
-            -keystore "$KEYSTORE" \
-            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
-            -keypass "$ANDROID_KEY_PASSWORD" \
-            "$OUT" "$ANDROID_KEY_ALIAS"
+          jarsigner -keystore "$KEYSTORE" -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" "$OUT" "$ANDROID_KEY_ALIAS"
           jarsigner -verify -strict -verbose -certs "$OUT" >/dev/null
           sha256sum "$OUT" | tee "$RUNNER_TEMP/android-signed-aab.sha256"
           echo "SIGNED_AAB=$OUT" >> "$GITHUB_ENV"
@@ -133,7 +130,7 @@ jobs:
           set -euo pipefail
           missing=()
           for name in IOS_DISTRIBUTION_P12_BASE64 IOS_DISTRIBUTION_P12_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APPLE_TEAM_ID; do
-            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+            [ -n "${!name:-}" ] || missing+=("$name")
           done
           if [ ${#missing[@]} -ne 0 ]; then
             printf 'MISSING_IOS_SIGNING_SECRET=%s\n' "${missing[@]}"
@@ -179,31 +176,24 @@ jobs:
           P12="$RUNNER_TEMP/distribution.p12"
           PROFILE="$RUNNER_TEMP/profile.mobileprovision"
           PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
-
           printf '%s' "$IOS_DISTRIBUTION_P12_BASE64" | base64 -D > "$P12"
           printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$PROFILE"
-
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN"
           security import "$P12" -k "$KEYCHAIN" -P "$IOS_DISTRIBUTION_P12_PASSWORD" -A -t cert -f pkcs12
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-
           security cms -D -i "$PROFILE" > "$PROFILE_PLIST"
           PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")"
           PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PROFILE_PLIST")"
           PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")"
-
           test "$PROFILE_TEAM" = "$APPLE_TEAM_ID"
           test "$PROFILE_APP_ID" = "$APPLE_TEAM_ID.$APP_ID"
-
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$PROFILE" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
-
           echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
           echo "TEMP_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
-          echo "TEMP_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
           echo "IOS_SIGNING_PROFILE_MATCH=PASS"
 
       - name: Archive signed iOS Release
@@ -211,29 +201,13 @@ jobs:
         run: |
           set -euo pipefail
           ARCHIVE="$RUNNER_TEMP/MercaTaxIVUPR.xcarchive"
-          rm -rf "$ARCHIVE"
-          if [ -d ios/App/App.xcworkspace ]; then
-            PROJECT_ARGS=(-workspace ios/App/App.xcworkspace)
-          else
-            PROJECT_ARGS=(-project ios/App/App.xcodeproj)
-          fi
-          xcodebuild "${PROJECT_ARGS[@]}" \
-            -scheme App \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$ARCHIVE" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY='Apple Distribution' \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$APP_ID" \
-            archive
+          if [ -d ios/App/App.xcworkspace ]; then PROJECT_ARGS=(-workspace ios/App/App.xcworkspace); else PROJECT_ARGS=(-project ios/App/App.xcodeproj); fi
+          xcodebuild "${PROJECT_ARGS[@]}" -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" PRODUCT_BUNDLE_IDENTIFIER="$APP_ID" archive
           test -d "$ARCHIVE/Products/Applications/App.app"
           codesign --verify --deep --strict "$ARCHIVE/Products/Applications/App.app"
           codesign -dv --verbose=4 "$ARCHIVE/Products/Applications/App.app" 2>&1 | grep -E 'Identifier=|TeamIdentifier='
-          echo "IOS_SIGNED_ARCHIVE=PASS"
           echo "IOS_ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "IOS_SIGNED_ARCHIVE=PASS"
 
       - name: Export App Store IPA
         shell: bash
@@ -244,32 +218,23 @@ jobs:
           cat > "$EXPORT_PLIST" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
+          <plist version="1.0"><dict>
             <key>method</key><string>app-store-connect</string>
             <key>teamID</key><string>${APPLE_TEAM_ID}</string>
             <key>signingStyle</key><string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>${APP_ID}</key><string>${PROFILE_UUID}</string>
-            </dict>
+            <key>provisioningProfiles</key><dict><key>${APP_ID}</key><string>${PROFILE_UUID}</string></dict>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
-          </dict>
-          </plist>
+          </dict></plist>
           PLIST
-          rm -rf "$EXPORT_DIR"
-          xcodebuild -exportArchive \
-            -archivePath "$IOS_ARCHIVE" \
-            -exportOptionsPlist "$EXPORT_PLIST" \
-            -exportPath "$EXPORT_DIR"
+          xcodebuild -exportArchive -archivePath "$IOS_ARCHIVE" -exportOptionsPlist "$EXPORT_PLIST" -exportPath "$EXPORT_DIR"
           IPA="$(find "$EXPORT_DIR" -maxdepth 1 -name '*.ipa' -print -quit)"
           test -n "$IPA"
           shasum -a 256 "$IPA" | tee "$RUNNER_TEMP/ios-signed-ipa.sha256"
           echo "SIGNED_IPA=$IPA" >> "$GITHUB_ENV"
           echo "IOS_APP_STORE_IPA=PASS"
 
-      - name: Upload to TestFlight when App Store Connect API credentials exist
+      - name: Upload to TestFlight when API credentials exist
         shell: bash
         run: |
           set -euo pipefail
@@ -282,11 +247,7 @@ jobs:
           KEY_FILE="$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
           printf '%s' "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 -D > "$KEY_FILE"
           chmod 600 "$KEY_FILE"
-          xcrun altool --upload-app \
-            --type ios \
-            --file "$SIGNED_IPA" \
-            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
-            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+          xcrun altool --upload-app --type ios --file "$SIGNED_IPA" --apiKey "$APP_STORE_CONNECT_KEY_ID" --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
           echo "TESTFLIGHT_UPLOAD=PASS"
 
       - name: Upload signed iOS Store artifacts
@@ -304,8 +265,6 @@ jobs:
         shell: bash
         run: |
           set +e
-          if [ -n "${TEMP_KEYCHAIN:-}" ]; then
-            security delete-keychain "$TEMP_KEYCHAIN"
-          fi
+          if [ -n "${TEMP_KEYCHAIN:-}" ]; then security delete-keychain "$TEMP_KEYCHAIN"; fi
           rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/profile.mobileprovision" "$RUNNER_TEMP/profile.plist"
           rm -rf "$HOME/.appstoreconnect/private_keys"
