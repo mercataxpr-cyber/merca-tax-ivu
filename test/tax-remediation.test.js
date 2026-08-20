@@ -134,10 +134,18 @@ test('official override replaces regular/adjusted date and preserves reference m
   assert.equal(result.override.reference, 'OFFICIAL-REF');
 });
 
-test('rounding policy is isolated and explicitly pending TAX SME certification', () => {
-  assert.equal(domain.ROUNDING_POLICY.status, 'POLICY/TAX SME REQUIRED');
+test('rounding rule is certified to Puerto Rico Treasury half-cent policy', () => {
+  assert.equal(domain.ROUNDING_POLICY.status, 'ROUNDING_RULE_CERTIFIED');
+  assert.equal(domain.ROUNDING_POLICY.method, 'HALF_CENT_UP');
+  assert.equal(domain.ROUNDING_POLICY.source, 'PR_TREASURY_IVU_REGULATION_ART_4020_01_1_B_1');
+  assert.equal(domain.ROUNDING_POLICY.scope, 'CURRENCY_ROUNDING_ONLY');
   assert.equal(domain.ROUNDING_POLICY.included, 'HISTORICAL_COMPATIBILITY_SEQUENCE');
-  assert.equal(domain.ROUNDING_POLICY.added, 'TECHNICAL_RECONCILIATION_PENDING_TAX_SME');
+  assert.equal(domain.ROUNDING_POLICY.added, 'REGULATORY_HALF_CENT_RULE');
+});
+
+test('11.5% added IVU follows the official half-cent boundary', () => {
+  assert.equal(domain.calculateTaxAdded(0.04, 'GENERAL_11_5').ivu, 0);
+  assert.equal(domain.calculateTaxAdded(0.05, 'GENERAL_11_5').ivu, 0.01);
 });
 
 test('all explicit profiles reconcile base + state + municipal to total at cents precision', () => {
