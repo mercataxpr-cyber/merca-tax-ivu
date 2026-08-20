@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { transformAppSource, transformIndexSource } from './runtime-tax-transform.mjs';
 import { injectLegalLinks } from './legal-runtime.mjs';
+import { writeOfficialPwaIcons } from './official-pwa-icons.mjs';
 
 const out = 'public';
 rmSync(out, { recursive: true, force: true });
@@ -14,9 +15,6 @@ const files = [
   'privacy.html',
   'terms.html',
   'legal-links.js',
-  'icon-192.png',
-  'icon-512.png',
-  'apple-touch-icon.png',
   'logo.png'
 ];
 
@@ -26,6 +24,9 @@ for (const file of files) {
 for (const dir of ['assets', 'src']) {
   if (existsSync(dir)) cpSync(dir, `${out}/${dir}`, { recursive: true });
 }
+
+const sourceIndex = readFileSync('index.html', 'utf8');
+await writeOfficialPwaIcons(sourceIndex, out);
 
 // Preserve the approved 1024px store AppIcon for branded report preview/print/export.
 const reportLogoSource = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
@@ -37,11 +38,11 @@ cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 // Static hosting must serve the same certified TAX runtime as server.js.
 writeFileSync(
   `${out}/index.html`,
-  injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8'))),
+  injectLegalLinks(transformIndexSource(sourceIndex)),
 );
 writeFileSync(
   `${out}/src/app.js`,
   transformAppSource(readFileSync('src/app.js', 'utf8')),
 );
 
-console.log('Static web bundle ready in public/ with certified TAX transforms and legal navigation.');
+console.log('Static web bundle ready in public/ with approved PWA icons, certified TAX transforms and legal navigation.');
