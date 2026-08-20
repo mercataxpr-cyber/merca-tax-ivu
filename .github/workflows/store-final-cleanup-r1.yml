@@ -1,4 +1,4 @@
-name: Store Dependency Lock Regeneration R1
+name: Store Final Cleanup R1
 
 on:
   push:
@@ -9,17 +9,95 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
-  regenerate-lock:
+  apply-final-cleanup:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
-      - name: Checkout isolated ops branch
+      - name: Checkout exact frozen release candidate
         uses: actions/checkout@v4
         with:
-          ref: ops/store-final-cleanup-r1
+          ref: release/store-ready-r1-candidate
           fetch-depth: 0
+
+      - name: Prove frozen starting SHA and main isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "92404bee8905bc25573f2c67eaf8ade041d5d49b"
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "26bbdc4529ad7d814305ef0e22499e4ab5be75ca"
+
+      - name: Import npm-regenerated clean dependency lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin ops/store-final-cleanup-r1:refs/remotes/origin/ops/store-final-cleanup-r1
+          test "$(git rev-parse origin/ops/store-final-cleanup-r1)" = "24d667f6880f885a8498f8fd5930732f3f5b1278"
+          git show origin/ops/store-final-cleanup-r1:package.json > package.json
+          git show origin/ops/store-final-cleanup-r1:package-lock.json > package-lock.json
+          ! grep -q '"@capacitor/assets"' package.json
+          ! grep -q 'node_modules/@capacitor/assets' package-lock.json
+          ! grep -q 'node_modules/@capacitor/assets/node_modules/tar' package-lock.json
+          grep -q '"version": "7.5.22"' package-lock.json
+
+      - name: Apply TAX rounding certification and CI guardrail fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one exact match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          ignore = Path('.gitignore')
+          ignore_text = ignore.read_text()
+          if 'public/\n' not in ignore_text:
+              if 'www/\n' not in ignore_text:
+                  raise SystemExit('expected www/ ignore anchor not found')
+              ignore.write_text(ignore_text.replace('www/\n', 'www/\npublic/\n', 1))
+
+          replace_once(
+              'src/tax-remediation.js',
+              """  const ROUNDING_POLICY = Object.freeze({\n    status: 'POLICY/TAX SME REQUIRED',\n    included: 'HISTORICAL_COMPATIBILITY_SEQUENCE',\n    added: 'TECHNICAL_RECONCILIATION_PENDING_TAX_SME',\n  });""",
+              """  const ROUNDING_POLICY = Object.freeze({\n    status: 'ROUNDING_RULE_CERTIFIED',\n    method: 'HALF_CENT_UP',\n    source: 'PR_TREASURY_IVU_REGULATION_ART_4020_01_1_B_1',\n    scope: 'CURRENCY_ROUNDING_ONLY',\n    included: 'HISTORICAL_COMPATIBILITY_SEQUENCE',\n    added: 'REGULATORY_HALF_CENT_RULE',\n  });""",
+          )
+          replace_once(
+              'src/tax-remediation.js',
+              '   * This is a mathematical compatibility policy only; TAX SME must certify any legal rounding requirement.',
+              '   * Currency rounding follows the certified half-cent rule. This inverse sequence is retained for compatibility and does not itself authorize tax-inclusive pricing, which is governed separately by Article 4020.06-1.',
+          )
+          replace_once(
+              'src/tax-remediation.js',
+              '   * This newly exposed operation requires independent TAX SME review before legal certification.',
+              '   * Currency rounding follows Article 4020.01-1(b)(1) of the Puerto Rico Treasury IVU Regulation: half a cent or more rounds up; less than half a cent does not.',
+          )
+
+          replace_once(
+              'test/tax-remediation.test.js',
+              """test('rounding policy is isolated and explicitly pending TAX SME certification', () => {\n  assert.equal(domain.ROUNDING_POLICY.status, 'POLICY/TAX SME REQUIRED');\n  assert.equal(domain.ROUNDING_POLICY.included, 'HISTORICAL_COMPATIBILITY_SEQUENCE');\n  assert.equal(domain.ROUNDING_POLICY.added, 'TECHNICAL_RECONCILIATION_PENDING_TAX_SME');\n});""",
+              """test('rounding rule is certified to Puerto Rico Treasury half-cent policy', () => {\n  assert.equal(domain.ROUNDING_POLICY.status, 'ROUNDING_RULE_CERTIFIED');\n  assert.equal(domain.ROUNDING_POLICY.method, 'HALF_CENT_UP');\n  assert.equal(domain.ROUNDING_POLICY.source, 'PR_TREASURY_IVU_REGULATION_ART_4020_01_1_B_1');\n  assert.equal(domain.ROUNDING_POLICY.scope, 'CURRENCY_ROUNDING_ONLY');\n  assert.equal(domain.ROUNDING_POLICY.included, 'HISTORICAL_COMPATIBILITY_SEQUENCE');\n  assert.equal(domain.ROUNDING_POLICY.added, 'REGULATORY_HALF_CENT_RULE');\n});\n\ntest('11.5% added IVU follows the official half-cent boundary', () => {\n  assert.equal(domain.calculateTaxAdded(0.04, 'GENERAL_11_5').ivu, 0);\n  assert.equal(domain.calculateTaxAdded(0.05, 'GENERAL_11_5').ivu, 0.01);\n});""",
+          )
+
+          replace_once(
+              '.github/workflows/final-mobile-tax-r1-gate.yml',
+              "          grep -Eq '^targetSdkVersion = 36$' android/variables.gradle",
+              "          grep -Eq '^[[:space:]]*targetSdkVersion[[:space:]]*=[[:space:]]*36[[:space:]]*$' android/variables.gradle",
+          )
+          replace_once(
+              '.github/workflows/final-mobile-tax-r1-gate.yml',
+              '          test -z "$(git status --porcelain --untracked-files=no)"',
+              '          test -z "$(git status --porcelain)"',
+          )
+          PY
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -27,39 +105,37 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Remove unused vulnerable asset tool and regenerate lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          node - <<'NODE'
-          const fs = require('fs');
-          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          if (p.devDependencies?.['@capacitor/assets'] !== '3.0.5') {
-            throw new Error('Unexpected @capacitor/assets state');
-          }
-          delete p.devDependencies['@capacitor/assets'];
-          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
-          NODE
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          ! grep -q '"@capacitor/assets"' package.json
-          ! grep -q 'node_modules/@capacitor/assets' package-lock.json
-
-      - name: Prove lock is installable and critical audit is clear
+      - name: Validate bounded cleanup
         shell: bash
         run: |
           set -euo pipefail
           npm ci --ignore-scripts --no-fund
+          npm run gate
+          npm run test:tax
+          npm run test:mobile-tax-parity
           npm audit --audit-level=critical
           npm audit --omit=dev --audit-level=high
+          git diff --check
+          test -z "$(git status --porcelain --ignored=no | grep -vE '^ M (package.json|package-lock.json|src/tax-remediation.js|test/tax-remediation.test.js|\.gitignore|\.github/workflows/final-mobile-tax-r1-gate.yml)$' || true)"
 
-      - name: Commit regenerated dependency lock to isolated branch
+      - name: Commit six bounded fixes to release candidate
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- package.json package-lock.json
-          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = "2"
+          git add -- package.json package-lock.json src/tax-remediation.js test/tax-remediation.test.js .gitignore .github/workflows/final-mobile-tax-r1-gate.yml
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = "6"
           git diff --cached --check
-          git commit -m 'ops: regenerate dependency lock without capacitor assets'
-          git push origin HEAD:ops/store-final-cleanup-r1
+          git commit -m 'fix: close final store certification blockers'
+          git push origin HEAD:release/store-ready-r1-candidate
+          echo "FINAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Dispatch exact-SHA final certification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run final-mobile-tax-r1-gate.yml --ref release/store-ready-r1-candidate
+          echo "Dispatched final certification for ${FINAL_SHA}"
