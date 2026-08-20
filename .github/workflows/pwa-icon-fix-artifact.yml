@@ -1,0 +1,44 @@
+name: PWA Official Icon Fix Artifact
+
+on:
+  push:
+    branches:
+      - teki/netlify-manual-bundle-9dd8878
+
+permissions:
+  contents: read
+
+jobs:
+  icons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify official source icon
+        run: |
+          test -f ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          file ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+
+      - name: Generate official PWA icon sizes
+        run: |
+          mkdir -p pwa-icon-fix
+          SRC="ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png"
+          if command -v magick >/dev/null 2>&1; then
+            magick "$SRC" -resize 192x192 pwa-icon-fix/icon-192.png
+            magick "$SRC" -resize 512x512 pwa-icon-fix/icon-512.png
+            magick "$SRC" -resize 180x180 pwa-icon-fix/apple-touch-icon.png
+          else
+            convert "$SRC" -resize 192x192 pwa-icon-fix/icon-192.png
+            convert "$SRC" -resize 512x512 pwa-icon-fix/icon-512.png
+            convert "$SRC" -resize 180x180 pwa-icon-fix/apple-touch-icon.png
+          fi
+          file pwa-icon-fix/*.png
+
+      - name: Upload official icon artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-pwa-official-icons
+          path: pwa-icon-fix/
+          if-no-files-found: error
+          retention-days: 1
