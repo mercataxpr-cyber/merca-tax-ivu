@@ -162,7 +162,7 @@ jobs:
           test -d /tmp/mercatax-derived-release/Build/Products/Release-iphonesimulator/App.app
           echo "IOS_RELEASE_SIMULATOR=PASS"
 
-      - name: Verify iOS packaged runtime parity
+      - name: Verify iOS packaged runtime and privacy manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -173,7 +173,14 @@ jobs:
           cmp www/src/app.js "$APP/public/src/app.js"
           grep -q 'legal-links.js' "$APP/public/index.html"
           ! grep -Eqi 'googletagmanager\.com|gtag\(' "$APP/public/index.html"
+          test -f "$APP/PrivacyInfo.xcprivacy"
+          plutil -lint "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'NSPrivacyAccessedAPICategoryUserDefaults' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'CA92.1' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'NSPrivacyAccessedAPICategoryFileTimestamp' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'C617.1' "$APP/PrivacyInfo.xcprivacy"
           echo "IOS_PACKAGED_RUNTIME_PARITY=PASS"
+          echo "IOS_PRIVACY_MANIFEST=PASS"
 
       - name: Clean-launch integrated iOS candidate
         shell: bash
