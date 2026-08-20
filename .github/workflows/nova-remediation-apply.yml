@@ -1,0 +1,33 @@
+name: NOVA Remediation Apply
+
+on:
+  push:
+    branches:
+      - nova/ui-refinement-r1-final
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: nova/ui-refinement-r1-final
+          fetch-depth: 0
+      - name: Apply deterministic remediation
+        run: python scripts/nova-final-remediate.py
+      - name: Commit remediation
+        run: |
+          if git diff --quiet; then
+            echo "No remediation changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/mobile-vnext-ui.js scripts/build-mobile.mjs scripts/build-web.mjs test/runtime-tax-integration.test.js test/mobile-vnext-ui.test.js .github/workflows/nova-ui-refinement-gate.yml
+          git commit -m "fix: finalize report branding and vNext recertification gates"
+          git push origin HEAD:nova/ui-refinement-r1-final
