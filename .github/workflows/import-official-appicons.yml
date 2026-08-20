@@ -1,0 +1,123 @@
+name: Import Official AppIcons
+
+on:
+  push:
+    branches:
+      - release/store-ready-r1-candidate
+
+permissions:
+  contents: write
+
+jobs:
+  import-official-icons:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download exact approved AppIcons package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet gdown
+          gdown --fuzzy 'https://drive.google.com/file/d/1RNCBaWGad_d9wJHT4Mk1q6IHskSXCdmA/view' -O /tmp/AppIcons.zip
+          test "$(stat -c%s /tmp/AppIcons.zip)" = "5316497"
+          echo '8dd8041143235b96a12f969d6a575623573688e45b0113e5a9b99b9fc5648773  /tmp/AppIcons.zip' | sha256sum -c -
+          rm -rf /tmp/appicons
+          mkdir -p /tmp/appicons
+          unzip -q /tmp/AppIcons.zip -d /tmp/appicons
+
+      - name: Replace every launcher/AppIcon with exact approved package files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Android: remove every historical/generated launcher variant.
+          find android/app/src/main/res -type f \( \
+            -name 'ic_launcher*.png' -o \
+            -name 'ic_launcher*.xml' -o \
+            -name '*launcher_foreground*.xml' \
+          \) -delete
+          rm -rf android/app/src/main/res/mipmap-anydpi-v26
+
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "android/app/src/main/res/mipmap-${density}"
+            cp "/tmp/appicons/android/mipmap-${density}/ic_launcher.png" \
+               "android/app/src/main/res/mipmap-${density}/ic_launcher.png"
+          done
+
+          # iOS: replace the complete AppIcon asset catalog with the approved ZIP set.
+          rm -rf ios/App/App/Assets.xcassets/AppIcon.appiconset
+          cp -R /tmp/appicons/Assets.xcassets/AppIcon.appiconset \
+                ios/App/App/Assets.xcassets/AppIcon.appiconset
+
+          # Store-only marketing/adaptive assets, also exact files from the same ZIP.
+          rm -rf store-assets
+          mkdir -p store-assets/android
+          cp /tmp/appicons/appstore.png store-assets/appstore.png
+          cp /tmp/appicons/playstore.png store-assets/playstore.png
+          cp /tmp/appicons/android/adaptive-foreground.png store-assets/android/adaptive-foreground.png
+
+          # Android uses the same approved launcher for regular and round requests.
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          s = s.replace('android:roundIcon="@mipmap/ic_launcher_round"', 'android:roundIcon="@mipmap/ic_launcher"')
+          p.write_text(s)
+          PY
+
+          # Report/PWA source must point at the approved 1024 ZIP asset.
+          python - <<'PY'
+          from pathlib import Path
+          for path in ['scripts/build-web.mjs', '.github/workflows/nova-ui-refinement-gate.yml']:
+              p = Path(path)
+              if not p.exists():
+                  continue
+              s = p.read_text()
+              s = s.replace('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png',
+                            'ios/App/App/Assets.xcassets/AppIcon.appiconset/1024.png')
+              p.write_text(s)
+          PY
+
+          # Remove obsolete generated-icon evidence/generator remnants if present.
+          rm -f PWA_ICON_FIX_EVIDENCE.md
+          rm -f assets/icon-source.svg scripts/generate-official-pwa-icons.mjs
+
+          # This import workflow is temporary and must not remain in the final candidate.
+          rm -f .github/workflows/import-official-appicons.yml
+
+      - name: Verify exact ZIP parity and no unauthorized icon artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp /tmp/appicons/android/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          cmp /tmp/appicons/android/mipmap-hdpi/ic_launcher.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          cmp /tmp/appicons/android/mipmap-xhdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          cmp /tmp/appicons/android/mipmap-xxhdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          cmp /tmp/appicons/android/mipmap-xxxhdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          cmp /tmp/appicons/Assets.xcassets/AppIcon.appiconset/1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/1024.png
+          cmp /tmp/appicons/appstore.png store-assets/appstore.png
+          cmp /tmp/appicons/playstore.png store-assets/playstore.png
+          cmp /tmp/appicons/android/adaptive-foreground.png store-assets/android/adaptive-foreground.png
+
+          test -z "$(find android/app/src/main/res -type f \( -name 'ic_launcher_background*' -o -name 'ic_launcher_foreground*' -o -name 'ic_launcher_round*' \) -print)"
+          test ! -e assets/icon-source.svg
+          test ! -e scripts/generate-official-pwa-icons.mjs
+
+          echo 'OFFICIAL_APPICONS_EXACT_PARITY=PASS'
+
+      - name: Commit imported official package
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'chore(icons): exact approved AppIcons package [icons-imported]'
+          git push origin HEAD:release/store-ready-r1-candidate
