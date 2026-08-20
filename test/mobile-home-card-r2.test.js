@@ -13,10 +13,21 @@ test('home summary refinement is syntactically valid and loaded after vNext UI',
 });
 
 test('home summary keeps three compact horizontal metric boxes on small screens', () => {
-  assert.match(source, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
-  assert.match(source, /border-radius:18px/);
+  assert.match(source, /#vx-home \.vxStats/);
+  assert.match(source, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)!important/);
   assert.match(source, /#vx-home \.vxStats>div/);
-  assert.match(source, /@media\(max-width:360px\)/);
+  assert.match(source, /min-height:66px/);
+});
+
+test('home keeps business, reminder, period and quick actions compact and horizontal on phones', () => {
+  assert.match(source, /#vx-home \.vxBusiness/);
+  assert.match(source, /grid-template-columns:48px minmax\(0,1fr\) auto!important/);
+  assert.match(source, /#vx-home \.vxReminder/);
+  assert.match(source, /grid-template-columns:38px minmax\(0,1fr\) auto!important/);
+  assert.match(source, /#vx-home \.vxPeriods/);
+  assert.match(source, /flex-direction:row!important/);
+  assert.match(source, /#vx-home \.vxQuick/);
+  assert.match(source, /#vx-home \.vxPromo/);
 });
 
 test('Vence derives its day from domain due presentation without hard-coded fiscal math', () => {
