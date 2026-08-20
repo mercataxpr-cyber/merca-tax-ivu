@@ -1,0 +1,50 @@
+name: Netlify Icon Fix Bundle
+
+on:
+  push:
+    branches:
+      - teki/netlify-iconfix-bundle-e1f15a
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Verify corrected official PWA icons
+        run: |
+          test -f public/index.html
+          test -f public/manifest.json
+          test -f public/icon-192.png
+          test -f public/icon-512.png
+          test -f public/apple-touch-icon.png
+          grep -q 'icon-192.png?v=official-r1' public/manifest.json
+          grep -q 'icon-512.png?v=official-r1' public/manifest.json
+          test "$(git hash-object public/icon-192.png)" = "570a0f478785916551cc30f8dd99a8e559934e91"
+          test "$(git hash-object public/icon-512.png)" = "00bdf9562fbc4bc7d578590751a456c0a419cc31"
+
+      - name: Create manual Netlify ZIP
+        run: |
+          cd public
+          zip -r ../MercaTax-IVU-PR-Netlify-ICON-FIX.zip .
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-ivu-netlify-icon-fix
+          path: MercaTax-IVU-PR-Netlify-ICON-FIX.zip
+          if-no-files-found: error
+          retention-days: 7
