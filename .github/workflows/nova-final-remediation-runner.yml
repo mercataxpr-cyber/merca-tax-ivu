@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - nova/ui-refinement-r1-final
+  pull_request:
+    branches:
+      - mobi/r2-final-parity-gate-remediation
 
 permissions:
   contents: write
@@ -37,7 +40,6 @@ jobs:
 
           REPORT_LOGO = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png'
 
-          # 1) vNext presentation-only report branding. Do not touch TAX source.
           path = Path('src/mobile-vnext-ui.js')
           source = path.read_text(encoding='utf-8')
           anchor = "  function wrapRender(){if(root.render?.__vxWrapped)return;const legacy=root.render;if(typeof legacy!=='function')return;const wrapped=function(...args){const out=legacy.apply(this,args);renderAll();return out;};wrapped.__vxWrapped=true;root.render=wrapped;}"
@@ -76,7 +78,6 @@ jobs:
           source = source.replace(old_boot, new_boot, 1)
           path.write_text(source, encoding='utf-8')
 
-          # 2) Package the frozen 1024px approved AppIcon asset at the same path in web/mobile outputs.
           for filename in ['scripts/build-mobile.mjs', 'scripts/build-web.mjs']:
               path = Path(filename)
               source = path.read_text(encoding='utf-8')
@@ -87,7 +88,6 @@ jobs:
               source = source.replace(anchor, anchor + addition, 1)
               path.write_text(source, encoding='utf-8')
 
-          # 3) Align runtime test contract with the actual seven-layer loader.
           path = Path('test/runtime-tax-integration.test.js')
           source = path.read_text(encoding='utf-8')
           old_paths = """  assert.deepEqual(paths, [\n    '/src/domain.js',\n    '/src/tax-remediation.js',\n    '/src/tax-calendar-contract.js',\n    '/src/tax-ui-bridge.js',\n    '/src/app.js',\n    '/src/mobile-r1-ui.js',\n  ]);"""
@@ -107,7 +107,6 @@ jobs:
           source = source.replace(mobile_guard, vnext_guard, 1)
           path.write_text(source, encoding='utf-8')
 
-          # 4) Add focused regression coverage for official report branding and packaging.
           path = Path('test/mobile-vnext-ui.test.js')
           source = path.read_text(encoding='utf-8')
           source = source.replace("import { readFileSync } from 'node:fs';", "import { existsSync, readFileSync } from 'node:fs';", 1)
@@ -119,7 +118,6 @@ jobs:
           source += """\n\ntest('report branding uses the approved 1024px AppIcon and packages it for web/mobile', () => {\n  assert.equal(existsSync(reportLogo), true);\n  assert.match(ui, /REPORT_LOGO_PATH='ios\\/App\\/App\\/Assets\\.xcassets\\/AppIcon\\.appiconset\\/AppIcon-512@2x\\.png'/);\n  assert.match(ui, /MercaTax IVU PR<\\/strong><span>Organización Financiera/);\n  assert.doesNotMatch(ui, /REPORT_LOGO_PATH=['\"]assets\\/logo\\.png/);\n  assert.ok(buildMobile.includes(reportLogo));\n  assert.ok(buildWeb.includes(reportLogo));\n});\n"""
           path.write_text(source, encoding='utf-8')
 
-          # 5) Make packaging evidence explicit in the existing NOVA gate.
           path = Path('.github/workflows/nova-ui-refinement-gate.yml')
           source = path.read_text(encoding='utf-8')
           anchor = "      - name: Build mobile web bundle\n        run: npm run mobile:build\n\n      - name: Mobile TAX parity\n"
@@ -129,7 +127,6 @@ jobs:
           source = source.replace(anchor, replacement, 1)
           path.write_text(source, encoding='utf-8')
 
-          # Frozen TAX files must remain untouched by this remediation.
           forbidden = [
               'src/domain.js',
               'src/tax-remediation.js',
