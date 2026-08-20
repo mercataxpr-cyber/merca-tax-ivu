@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - teki/netlify-manual-bundle-9dd8878
+  pull_request:
+    branches:
+      - mobi/r2-final-parity-gate-remediation
 
 jobs:
   bundle:
