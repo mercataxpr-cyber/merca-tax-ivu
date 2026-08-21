@@ -67,3 +67,5 @@ jobs:
           git rm .github/workflows/pwa-rootfix-r1-finalize.yml
           git commit -m 'fix(pwa): finalize official install icon identity r1'
           git push origin HEAD:nova/pwa-official-icon-rootfix-r1
+
+# One-shot validation workflow. It removes itself after a successful run.
