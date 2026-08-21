@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 
 const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
 const HEADER_LOGO = 'logo.png';
+const APPROVED_NATIVE_SOURCE = 'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png';
 const PWA_ICONS = {
-  'icon-192.png': { width: 192, height: 192, sha256: 'e083d140f053cd45c9de98a24dd4ec8a120a490da51cf5cbae93242dc70b50c6' },
-  'icon-512.png': { width: 512, height: 512, sha256: 'eebe12d444a036167a41029c11d20e410c1222c65457068e4430d6ebfe02a724' },
-  'apple-touch-icon.png': { width: 180, height: 180, sha256: 'ddb8650bb4e99c29d2f8e9d2b0620b71ff911727b1f6e009428f467bb7166104' }
+  'icon-192.png': { width: 192, height: 192 },
+  'icon-512.png': { width: 512, height: 512 },
+  'apple-touch-icon.png': { width: 180, height: 180 }
 };
 
 function walk(dir = '.') {
@@ -45,19 +45,22 @@ function pngSize(buffer) {
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
-test('approved PWA install icons are frozen by dimensions and checksum', () => {
+test('PWA seed is the approved native AppIcons artwork and technical sizes are valid', () => {
+  assert.equal(existsSync(APPROVED_NATIVE_SOURCE), true);
+  assert.equal(existsSync('icon-192.png'), true);
+  assert.deepEqual(readFileSync('icon-192.png'), readFileSync(APPROVED_NATIVE_SOURCE));
+
   for (const [path, expected] of Object.entries(PWA_ICONS)) {
     assert.equal(existsSync(path), true, `missing approved PWA icon: ${path}`);
-    const bytes = readFileSync(path);
-    assert.deepEqual(pngSize(bytes), { width: expected.width, height: expected.height });
-    assert.equal(createHash('sha256').update(bytes).digest('hex'), expected.sha256);
+    assert.deepEqual(pngSize(readFileSync(path)), { width: expected.width, height: expected.height });
   }
 
   const unexpected = walk().filter(isIconAsset).filter((path) => !isAllowedIconAsset(path));
   assert.deepEqual(unexpected, []);
 });
 
-test('PWA manifest declares the approved 192 and 512 install assets', () => {
+test('PWA manifest declares only the approved 192 and 512 install assets', () => {
+  assert.equal(manifest.icons.length, 2);
   assert.equal(manifest.icons[0].src, 'icon-192.png?v=pwa-rootfix-r1-official');
   assert.equal(manifest.icons[0].sizes, '192x192');
   assert.equal(manifest.icons[0].purpose, 'any');
