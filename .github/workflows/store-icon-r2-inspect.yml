@@ -15,17 +15,57 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Decode exact approved source
+      - name: Reconstruct exact approved source
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p kora-icon-output/root kora-icon-output/ios kora-icon-output/android
-          : > kora-icon-output/approved-192.png
-          for f in .github/store-icon-r2/chunks/*.b64; do
-            base64 --decode "$f" >> kora-icon-output/approved-192.png
-          done
-          echo "decoded_git_blob=$(git hash-object kora-icon-output/approved-192.png)"
-          test "$(git hash-object kora-icon-output/approved-192.png)" = "7fbaccec4055a9f314e55e9c91c2f19af9578a1c"
+          python3 - <<'PY'
+          import base64, glob, hashlib, pathlib, re, struct
+          expected='7fbaccec4055a9f314e55e9c91c2f19af9578a1c'
+          files=sorted(glob.glob('.github/store-icon-r2/chunks/*.b64'))
+          texts=[]
+          for p in files:
+              raw=pathlib.Path(p).read_text()
+              clean=re.sub(r'\s+', '', raw)
+              texts.append(clean)
+              invalid=re.sub(r'[A-Za-z0-9+/=]', '', clean)
+              print(f'{p}: chars={len(clean)} mod4={len(clean)%4} invalid={len(invalid)} head={clean[:8]!r} tail={clean[-8:]!r}')
+
+          def gitblob(data):
+              return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+          def decode_one(s):
+              s=re.sub(r'[^A-Za-z0-9+/=]', '', s)
+              return base64.b64decode(s + '='*((-len(s))%4), validate=False)
+
+          candidates={}
+          try:
+              candidates['joined']=decode_one(''.join(texts))
+          except Exception as e:
+              print('joined decode error:',repr(e))
+          try:
+              candidates['per_chunk']=b''.join(decode_one(s) for s in texts)
+          except Exception as e:
+              print('per_chunk decode error:',repr(e))
+          try:
+              candidates['joined_no_mid_padding']=decode_one(''.join(s.rstrip('=') for s in texts[:-1])+texts[-1])
+          except Exception as e:
+              print('joined_no_mid_padding decode error:',repr(e))
+
+          chosen=None
+          for name,data in candidates.items():
+              sha=gitblob(data)
+              dims='n/a'
+              if len(data)>=24 and data[:8]==b'\x89PNG\r\n\x1a\n':
+                  dims='%dx%d'%struct.unpack('>II',data[16:24])
+              print(f'{name}: bytes={len(data)} gitblob={sha} dims={dims}')
+              if sha==expected:
+                  chosen=data
+          if chosen is None:
+              raise SystemExit('No reconstruction matched the KORA-approved source blob')
+          pathlib.Path('kora-icon-output/approved-192.png').write_bytes(chosen)
+          print('APPROVED_SOURCE_MATCH=PASS')
+          PY
 
       - name: Render technical sizes without redesign
         shell: bash
