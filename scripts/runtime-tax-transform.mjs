@@ -22,6 +22,26 @@ function replaceRegexExactly(source, pattern, after, label) {
 
 export function transformIndexSource(source) {
   let output = String(source);
+
+  output = replaceExactly(
+    output,
+    '<link rel="manifest" href="manifest.json">',
+    '<link rel="manifest" href="manifest.json?v=pwa-rootfix-r1-official">',
+    'PWA manifest link',
+  );
+  output = replaceExactly(
+    output,
+    '<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">',
+    '<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=pwa-rootfix-r1-official">',
+    'Apple touch icon link',
+  );
+  output = replaceRegexExactly(
+    output,
+    /<link rel="icon" href="data:image\/png;base64,[^"]+">/g,
+    '<link rel="icon" type="image/png" href="icon-192.png?v=pwa-rootfix-r1-official">',
+    'legacy inline favicon',
+  );
+
   const legacyMarker = "<script>\nconst WA='17873566336', PIN='1234';";
   const start = output.indexOf(legacyMarker);
   if (start === -1) throw new Error('Runtime tax transform could not find legacy inline application script');
@@ -83,7 +103,7 @@ export function transformAppSource(source) {
   output = replaceExactly(
     output,
     "function sendLocalReminder(days){if(!('Notification' in window)||Notification.permission!=='granted')return; const key='mt_notice_'+new Date().toISOString().slice(0,10); if(localStorage.getItem(key))return; new Notification('MercaTax IVU PR',{body:'Recordatorio: faltan '+days+' días para rendir/pagar IVU.', icon:'assets/icon-192.png'}); localStorage.setItem(key,'1')}\nfunction checkIvuReminder(){updateNotificationButton();let d=new Date().getDate();let days=20-d;if(days<0)days=20;if((d>=15||d===1)&&notificationState()==='granted'){setTimeout(()=>sendLocalReminder(days),800)}}",
-    "function sendLocalReminder(reminder){if(!reminder||!reminder.ready||!('Notification' in window)||Notification.permission!=='granted')return;const key='mt_notice_'+reminder.effectiveDate+'_'+new Date().toISOString().slice(0,10);if(localStorage.getItem(key))return;new Notification(reminder.title,{body:reminder.body,icon:'assets/icon-192.png'});localStorage.setItem(key,'1')}\nfunction checkIvuReminder(){updateNotificationButton();const reminder=MercaTaxTaxUi.reminderForPeriod({reportingPeriod:state.selectedMonth,currentDate:new Date()});if(reminder&&reminder.ready&&notificationState()==='granted'){setTimeout(()=>sendLocalReminder(reminder),800)}}",
+    "function sendLocalReminder(reminder){if(!reminder||!reminder.ready||!('Notification' in window)||Notification.permission!=='granted')return;const key='mt_notice_'+reminder.effectiveDate+'_'+new Date().toISOString().slice(0,10);if(localStorage.getItem(key))return;new Notification(reminder.title,{body:reminder.body,icon:'icon-192.png?v=pwa-rootfix-r1-official'});localStorage.setItem(key,'1')}\nfunction checkIvuReminder(){updateNotificationButton();const reminder=MercaTaxTaxUi.reminderForPeriod({reportingPeriod:state.selectedMonth,currentDate:new Date()});if(reminder&&reminder.ready&&notificationState()==='granted'){setTimeout(()=>sendLocalReminder(reminder),800)}}",
     'legacy day-20 reminder',
   );
   output = replaceExactly(
