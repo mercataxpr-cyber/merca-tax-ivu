@@ -1,72 +1,63 @@
-name: KORA Store Icon R2 Inspect
+name: KORA Store Icon R2 Render
 
 on:
   push:
     branches: [mobi-nova/store-icon-identity-r2]
-    paths:
-      - .github/workflows/store-icon-r2-inspect.yml
+  pull_request:
+    branches: [release/store-ready-r1-candidate]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  inspect-approved-payload:
+  render-approved-icons:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: mobi-nova/store-icon-identity-r2
-          fetch-depth: 0
 
-      - name: Reconstruct approved AppIcons ZIP and inventory assets
+      - name: Decode exact approved source
         shell: bash
         run: |
           set -euo pipefail
-          TMP="$RUNNER_TEMP/store-icon-r2"
-          mkdir -p "$TMP/unpacked"
-          cat .github/store-icon-r2/chunks/*.b64 > "$TMP/AppIcons.zip.b64"
-          base64 --decode "$TMP/AppIcons.zip.b64" > "$TMP/AppIcons.zip"
-          unzip -t "$TMP/AppIcons.zip"
-          unzip -q "$TMP/AppIcons.zip" -d "$TMP/unpacked"
+          mkdir -p kora-icon-output/root kora-icon-output/ios kora-icon-output/android
+          cat .github/store-icon-r2/chunks/*.b64 | base64 --decode > kora-icon-output/approved-192.png
+          test "$(git hash-object kora-icon-output/approved-192.png)" = "7fbaccec4055a9f314e55e9c91c2f19af9578a1c"
 
-          REPORT=.github/store-icon-r2/inspection-report.txt
+      - name: Render technical sizes without redesign
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v convert >/dev/null 2>&1
+          SRC=kora-icon-output/approved-192.png
+          cp "$SRC" kora-icon-output/root/icon-192.png
+          convert "$SRC" -filter Lanczos -resize 512x512! kora-icon-output/root/icon-512.png
+          convert "$SRC" -filter Lanczos -resize 180x180! kora-icon-output/root/apple-touch-icon.png
+          convert "$SRC" -filter Lanczos -resize 1024x1024! kora-icon-output/ios/AppIcon-512@2x.png
+          for spec in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            density=${spec%%:*}; size=${spec##*:}
+            mkdir -p "kora-icon-output/android/$density"
+            if [ "$size" = 192 ]; then cp "$SRC" "kora-icon-output/android/$density/ic_launcher.png"; else convert "$SRC" -filter Lanczos -resize "${size}x${size}!" "kora-icon-output/android/$density/ic_launcher.png"; fi
+            cp "kora-icon-output/android/$density/ic_launcher.png" "kora-icon-output/android/$density/ic_launcher_round.png"
+          done
+          for spec in mdpi:108 hdpi:162 xhdpi:216 xxhdpi:324 xxxhdpi:432; do
+            density=${spec%%:*}; size=${spec##*:}
+            convert "$SRC" -filter Lanczos -resize "${size}x${size}!" "kora-icon-output/android/$density/ic_launcher_foreground.png"
+          done
+
+      - name: Record hashes and dimensions
+        shell: bash
+        run: |
+          set -euo pipefail
           {
-            echo "KORA_STORE_ICON_R2_PAYLOAD=PASS"
-            echo "ZIP_SHA256=$(sha256sum "$TMP/AppIcons.zip" | awk '{print $1}')"
-            echo
-            echo "FILES"
-            find "$TMP/unpacked" -type f -print | sort | sed "s#^$TMP/unpacked/##"
-            echo
-            echo "PNG_IDENTITY"
-            while IFS= read -r f; do
-              rel="${f#$TMP/unpacked/}"
-              dims=$(python3 - "$f" <<'PY'
-import struct,sys
-p=sys.argv[1]
-with open(p,'rb') as fh:
-    sig=fh.read(24)
-if len(sig)>=24 and sig[:8]==b'\x89PNG\r\n\x1a\n':
-    w,h=struct.unpack('>II',sig[16:24])
-    print(f'{w}x{h}')
-else:
-    print('not-png')
-PY
-)
-              printf '%s | %s | gitblob=%s | sha256=%s\n' "$rel" "$dims" "$(git hash-object "$f")" "$(sha256sum "$f" | awk '{print $1}')"
-            done < <(find "$TMP/unpacked" -type f -iname '*.png' -print | sort)
-          } > "$REPORT"
+            echo "SOURCE_GIT_BLOB=$(git hash-object kora-icon-output/approved-192.png)"
+            find kora-icon-output -type f -name '*.png' -print0 | sort -z | while IFS= read -r -d '' f; do
+              printf '%s|gitblob=%s|sha256=%s\n' "$f" "$(git hash-object "$f")" "$(sha256sum "$f" | awk '{print $1}')"
+            done
+          } > kora-icon-output/identity.lock
+          cat kora-icon-output/identity.lock
 
-          cat "$REPORT"
-
-      - name: Commit inspection report
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "kora-store-gate"
-          git config user.email "kora-store-gate@users.noreply.github.com"
-          git add -- .github/store-icon-r2/inspection-report.txt
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git commit -m "chore(kora): record approved icon payload inventory"
-          git push origin HEAD:mobi-nova/store-icon-identity-r2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kora-approved-icon-assets
+          path: kora-icon-output
+          if-no-files-found: error
