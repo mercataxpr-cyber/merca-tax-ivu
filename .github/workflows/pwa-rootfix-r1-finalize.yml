@@ -4,15 +4,16 @@ on:
   push:
     branches:
       - nova/pwa-official-icon-rootfix-r1
-    paths:
-      - icon-192.png
-      - .github/workflows/pwa-rootfix-r1-finalize.yml
+  pull_request:
+    branches:
+      - release/store-ready-r1-candidate
 
 permissions:
   contents: write
 
 jobs:
   finalize-official-pwa-icons:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout rootfix branch
@@ -67,5 +68,3 @@ jobs:
           git rm .github/workflows/pwa-rootfix-r1-finalize.yml
           git commit -m 'fix(pwa): finalize official install icon identity r1'
           git push origin HEAD:nova/pwa-official-icon-rootfix-r1
-
-# One-shot validation workflow. It removes itself after a successful run.
