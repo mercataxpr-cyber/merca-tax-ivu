@@ -1,0 +1,72 @@
+name: KORA Store Icon R2 Inspect
+
+on:
+  push:
+    branches: [mobi-nova/store-icon-identity-r2]
+    paths:
+      - .github/workflows/store-icon-r2-inspect.yml
+
+permissions:
+  contents: write
+
+jobs:
+  inspect-approved-payload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: mobi-nova/store-icon-identity-r2
+          fetch-depth: 0
+
+      - name: Reconstruct approved AppIcons ZIP and inventory assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP="$RUNNER_TEMP/store-icon-r2"
+          mkdir -p "$TMP/unpacked"
+          cat .github/store-icon-r2/chunks/*.b64 > "$TMP/AppIcons.zip.b64"
+          base64 --decode "$TMP/AppIcons.zip.b64" > "$TMP/AppIcons.zip"
+          unzip -t "$TMP/AppIcons.zip"
+          unzip -q "$TMP/AppIcons.zip" -d "$TMP/unpacked"
+
+          REPORT=.github/store-icon-r2/inspection-report.txt
+          {
+            echo "KORA_STORE_ICON_R2_PAYLOAD=PASS"
+            echo "ZIP_SHA256=$(sha256sum "$TMP/AppIcons.zip" | awk '{print $1}')"
+            echo
+            echo "FILES"
+            find "$TMP/unpacked" -type f -print | sort | sed "s#^$TMP/unpacked/##"
+            echo
+            echo "PNG_IDENTITY"
+            while IFS= read -r f; do
+              rel="${f#$TMP/unpacked/}"
+              dims=$(python3 - "$f" <<'PY'
+import struct,sys
+p=sys.argv[1]
+with open(p,'rb') as fh:
+    sig=fh.read(24)
+if len(sig)>=24 and sig[:8]==b'\x89PNG\r\n\x1a\n':
+    w,h=struct.unpack('>II',sig[16:24])
+    print(f'{w}x{h}')
+else:
+    print('not-png')
+PY
+)
+              printf '%s | %s | gitblob=%s | sha256=%s\n' "$rel" "$dims" "$(git hash-object "$f")" "$(sha256sum "$f" | awk '{print $1}')"
+            done < <(find "$TMP/unpacked" -type f -iname '*.png' -print | sort)
+          } > "$REPORT"
+
+          cat "$REPORT"
+
+      - name: Commit inspection report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "kora-store-gate"
+          git config user.email "kora-store-gate@users.noreply.github.com"
+          git add -- .github/store-icon-r2/inspection-report.txt
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore(kora): record approved icon payload inventory"
+          git push origin HEAD:mobi-nova/store-icon-identity-r2
