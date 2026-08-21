@@ -24,27 +24,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          FILE_ID='1RNCBaWGad_d9wJHT4Mk1q6IHskSXCdmA'
+          EXPECTED_SIZE='5316497'
+          EXPECTED_SHA='8dd8041143235b96a12f969d6a575623573688e45b0113e5a9b99b9fc5648773'
           python -m pip install --quiet gdown pillow
-          gdown --id '1RNCBaWGad_d9wJHT4Mk1q6IHskSXCdmA' -O /tmp/AppIcons.zip
-          echo '8dd8041143235b96a12f969d6a575623573688e45b0113e5a9b99b9fc5648773  /tmp/AppIcons.zip' | sha256sum -c -
+          gdown --id "$FILE_ID" -O /tmp/AppIcons.zip || true
+          if [ ! -f /tmp/AppIcons.zip ] || [ "$(stat -c%s /tmp/AppIcons.zip 2>/dev/null || echo 0)" != "$EXPECTED_SIZE" ]; then
+            rm -f /tmp/AppIcons.zip
+            curl -L --fail --retry 3 -o /tmp/AppIcons.zip "https://drive.usercontent.google.com/download?id=${FILE_ID}&export=download&confirm=t"
+          fi
+          test "$(stat -c%s /tmp/AppIcons.zip)" = "$EXPECTED_SIZE"
+          echo "$EXPECTED_SHA  /tmp/AppIcons.zip" | sha256sum -c -
 
       - name: Replace PWA and native icon assets only
         shell: bash
         run: |
           set -euo pipefail
-
-          # PWA install icons: exact files from the approved ZIP.
           unzip -p /tmp/AppIcons.zip 'android/mipmap-xxxhdpi/ic_launcher.png' > icon-192.png
           unzip -p /tmp/AppIcons.zip 'playstore.png' > icon-512.png
           unzip -p /tmp/AppIcons.zip 'Assets.xcassets/AppIcon.appiconset/180.png' > apple-touch-icon.png
 
-          # Android launcher icons: exact density assets from the approved ZIP.
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             unzip -p /tmp/AppIcons.zip "android/mipmap-${density}/ic_launcher.png" > "android/app/src/main/res/mipmap-${density}/ic_launcher.png"
             cp "android/app/src/main/res/mipmap-${density}/ic_launcher.png" "android/app/src/main/res/mipmap-${density}/ic_launcher_round.png"
           done
 
-          # Android adaptive icon foreground from the approved ZIP; white background per the pack README.
           unzip -p /tmp/AppIcons.zip 'android/adaptive-foreground.png' > /tmp/adaptive-foreground.png
           python - <<'PY'
           from PIL import Image
@@ -59,10 +63,8 @@ jobs:
               Image.new('RGBA', (px, px), (255,255,255,255)).save(folder / 'ic_launcher_background.png')
           PY
 
-          # iOS app icon: exact 1024 artwork from the approved ZIP.
           unzip -p /tmp/AppIcons.zip 'Assets.xcassets/AppIcon.appiconset/1024.png' > ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
 
-          # Cache-bust only the PWA icon URLs so installed PWA fetches this ZIP artwork.
           python - <<'PY'
           import json
           from pathlib import Path
