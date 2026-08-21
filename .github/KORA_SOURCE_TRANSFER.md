@@ -1,0 +1,1 @@
+KORA source transfer is authenticated against the user-approved AppIcons (1).zip (SHA-256 8dd8041143235b96a12f969d6a575623573688e45b0113e5a9b99b9fc5648773). Final assets must match Android blob 7fbaccec4055a9f314e55e9c91c2f19af9578a1c and iOS blob 408584781de00f1ce6d8fff7729b7ef3b7a1fedf before release.
