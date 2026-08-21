@@ -1,20 +1,16 @@
-# MercaTax IVU PR — Official icon source policy
+# MercaTax IVU PR — PWA Official Icon Rootfix R1
 
-Source of truth is the user-approved **AppIcons** package already installed in the native project.
+The effective PWA manifest is the root `manifest.json` referenced by the runtime HTML.
 
-Allowed icon artwork in the repository:
+Root cause of the generic browser install identity was conflicting PWA metadata and asset resolution: the runtime HTML exposed a legacy inline favicon and a different Apple touch path while manifest/install assets were handled independently. The mobile build could also overwrite PWA output aliases from native launcher assets.
 
-- Android launcher/adaptive assets under `android/app/src/main/res/mipmap-*`.
-- iOS AppIcon asset set under `ios/App/App/Assets.xcassets/AppIcon.appiconset/`.
-- `logo.png` only as the approved header/logo asset.
+Rootfix R1 makes PWA identity deterministic:
 
-Removed as non-authoritative or duplicate artwork:
+- `manifest.json` declares only root `icon-192.png` and `icon-512.png`, both PNG with `purpose: any`.
+- Runtime HTML metadata resolves manifest, favicon and Apple touch identity to the same root PWA source set.
+- Notifications use the same root PWA icon instead of the legacy `assets/icon-192.png` path.
+- Web and mobile builds copy the root PWA identity assets directly and no longer create competing runtime icon aliases.
+- The 192px PWA seed is the approved AppIcons Android launcher artwork already installed in the native project. The 512px and 180px assets are technical size derivatives only; no alternate artwork, text, color or composition is introduced.
+- Native Android/iOS launcher resources remain native packaging resources and are not rewritten by this PWA-only fix.
 
-- root `icon-192.png` / `icon-512.png` / `apple-touch-icon.png` copies.
-- `assets/icon-source.svg` placeholder artwork (`MT`).
-- legacy Android Studio default launcher vector/background resources.
-- the script that generated alternate PWA artwork from embedded/header imagery.
-
-Static/mobile builds now create runtime install aliases by copying the approved native assets byte-for-byte. They do not redraw, crop, mask, composite, or invent icon artwork.
-
-No TAX/domain logic is modified.
+No TAX/domain logic is changed by this rootfix.
