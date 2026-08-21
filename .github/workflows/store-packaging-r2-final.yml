@@ -1,0 +1,263 @@
+name: Store Packaging R2 Final — Signed Android + iOS
+
+on:
+  push:
+    branches: [mobi/store-packaging-r2-final]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: 5c2914d5b942b30e1970d317bfab4b7d5392b585
+  APP_ID: com.mercatax.ivupr
+  APP_VERSION: 1.0.0
+
+jobs:
+  android-signed-aab:
+    name: Android signed AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - name: Require Android signing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            [ -n "${!name:-}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            printf 'MISSING_ANDROID_SIGNING_SECRET=%s\n' "${missing[@]}"
+            exit 1
+          fi
+          echo "ANDROID_SIGNING_CREDENTIALS_PRESENT=PASS"
+
+      - name: Checkout exact final candidate
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+          fetch-depth: 0
+
+      - name: Prove exact product SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          echo "PACKAGING_PRODUCT_SHA=$(git rev-parse HEAD)"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install and sync exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run mobile:build
+          npx cap sync android
+
+      - name: Build unsigned Release AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+          test -f app/build/outputs/bundle/release/app-release.aab
+
+      - name: Sign and verify AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/mercatax-release.jks"
+          OUT="$RUNNER_TEMP/mercatax-ivu-pr-${APP_VERSION}-signed.aab"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          keytool -list -keystore "$KEYSTORE" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          cp android/app/build/outputs/bundle/release/app-release.aab "$OUT"
+          jarsigner -keystore "$KEYSTORE" -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" "$OUT" "$ANDROID_KEY_ALIAS"
+          jarsigner -verify -strict -verbose -certs "$OUT" >/dev/null
+          sha256sum "$OUT" | tee "$RUNNER_TEMP/android-signed-aab.sha256"
+          echo "SIGNED_AAB=$OUT" >> "$GITHUB_ENV"
+          echo "ANDROID_SIGNED_AAB=PASS"
+
+      - name: Upload signed Android Store artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-store-android-signed-${{ env.CANDIDATE_SHA }}
+          path: |
+            ${{ env.SIGNED_AAB }}
+            ${{ runner.temp }}/android-signed-aab.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  ios-signed-ipa:
+    name: iOS signed Archive + IPA
+    runs-on: macos-26
+    timeout-minutes: 50
+    env:
+      IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+      IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+    steps:
+      - name: Require iOS signing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in IOS_DISTRIBUTION_P12_BASE64 IOS_DISTRIBUTION_P12_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APPLE_TEAM_ID; do
+            [ -n "${!name:-}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            printf 'MISSING_IOS_SIGNING_SECRET=%s\n' "${missing[@]}"
+            exit 1
+          fi
+          echo "IOS_SIGNING_CREDENTIALS_PRESENT=PASS"
+
+      - name: Checkout exact final candidate
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+          fetch-depth: 0
+
+      - name: Prove exact product SHA and Xcode floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          echo "PACKAGING_PRODUCT_SHA=$(git rev-parse HEAD)"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install and sync exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run mobile:build
+          npx cap sync ios
+
+      - name: Install Apple Distribution identity and profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/mercatax-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          P12="$RUNNER_TEMP/distribution.p12"
+          PROFILE="$RUNNER_TEMP/profile.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
+          printf '%s' "$IOS_DISTRIBUTION_P12_BASE64" | base64 -D > "$P12"
+          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$PROFILE"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+          security import "$P12" -k "$KEYCHAIN" -P "$IOS_DISTRIBUTION_P12_PASSWORD" -A -t cert -f pkcs12
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security cms -D -i "$PROFILE" > "$PROFILE_PLIST"
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")"
+          PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PROFILE_PLIST")"
+          PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")"
+          test "$PROFILE_TEAM" = "$APPLE_TEAM_ID"
+          test "$PROFILE_APP_ID" = "$APPLE_TEAM_ID.$APP_ID"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "TEMP_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          echo "IOS_SIGNING_PROFILE_MATCH=PASS"
+
+      - name: Archive signed iOS Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="$RUNNER_TEMP/MercaTaxIVUPR.xcarchive"
+          if [ -d ios/App/App.xcworkspace ]; then PROJECT_ARGS=(-workspace ios/App/App.xcworkspace); else PROJECT_ARGS=(-project ios/App/App.xcodeproj); fi
+          xcodebuild "${PROJECT_ARGS[@]}" -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" PRODUCT_BUNDLE_IDENTIFIER="$APP_ID" archive
+          test -d "$ARCHIVE/Products/Applications/App.app"
+          codesign --verify --deep --strict "$ARCHIVE/Products/Applications/App.app"
+          echo "IOS_ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "IOS_SIGNED_ARCHIVE=PASS"
+
+      - name: Export App Store IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPORT_DIR="$RUNNER_TEMP/mercatax-export"
+          EXPORT_PLIST="$RUNNER_TEMP/ExportOptions.plist"
+          cat > "$EXPORT_PLIST" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict><key>${APP_ID}</key><string>${PROFILE_UUID}</string></dict>
+            <key>stripSwiftSymbols</key><true/>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$IOS_ARCHIVE" -exportOptionsPlist "$EXPORT_PLIST" -exportPath "$EXPORT_DIR"
+          IPA="$(find "$EXPORT_DIR" -maxdepth 1 -name '*.ipa' -print -quit)"
+          test -n "$IPA"
+          shasum -a 256 "$IPA" | tee "$RUNNER_TEMP/ios-signed-ipa.sha256"
+          echo "SIGNED_IPA=$IPA" >> "$GITHUB_ENV"
+          echo "IOS_APP_STORE_IPA=PASS"
+
+      - name: Upload to TestFlight when API credentials exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${APP_STORE_CONNECT_KEY_ID:-}" ] || [ -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ] || [ -z "${APP_STORE_CONNECT_API_KEY_BASE64:-}" ]; then
+            echo "TESTFLIGHT_UPLOAD=SKIPPED_MISSING_APP_STORE_CONNECT_API_CREDENTIALS"
+            exit 0
+          fi
+          KEY_DIR="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$KEY_DIR"
+          KEY_FILE="$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 -D > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          xcrun altool --upload-app --type ios --file "$SIGNED_IPA" --apiKey "$APP_STORE_CONNECT_KEY_ID" --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+          echo "TESTFLIGHT_UPLOAD=PASS"
+
+      - name: Upload signed iOS Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-store-ios-signed-${{ env.CANDIDATE_SHA }}
+          path: |
+            ${{ env.SIGNED_IPA }}
+            ${{ runner.temp }}/ios-signed-ipa.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Clean temporary signing material
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -n "${TEMP_KEYCHAIN:-}" ]; then security delete-keychain "$TEMP_KEYCHAIN"; fi
+          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/profile.mobileprovision" "$RUNNER_TEMP/profile.plist"
+          rm -rf "$HOME/.appstoreconnect/private_keys"
