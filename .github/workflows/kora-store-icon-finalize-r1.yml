@@ -1,9 +1,9 @@
 name: KORA Store Icon Finalize R1
 
 on:
-  push:
+  pull_request:
     branches:
-      - kora/store-icon-identity-final-r1
+      - release/store-ready-r1-candidate
     paths:
       - .github/workflows/kora-store-icon-finalize-r1.yml
 
@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   finalize-exact-approved-identity:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     env:
       FILE_ID: 1RNCBaWGad_d9wJHT4Mk1q6IHskSXCdmA
@@ -46,17 +47,10 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --quiet Pillow
-
-          # PWA: exact approved assets from the package, no alternate artwork.
           cp /tmp/appicons/android/mipmap-xxxhdpi/ic_launcher.png icon-192.png
           cp /tmp/appicons/playstore.png icon-512.png
           cp /tmp/appicons/Assets.xcassets/AppIcon.appiconset/180.png apple-touch-icon.png
-
-          # iOS: exact KORA-audited 1024 App Store icon bytes.
-          cp /tmp/appicons/Assets.xcassets/AppIcon.appiconset/1024.png \
-            ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
-
-          # Android legacy/round launchers: exact package mipmaps.
+          cp /tmp/appicons/Assets.xcassets/AppIcon.appiconset/1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             src="/tmp/appicons/android/mipmap-${density}/ic_launcher.png"
             dst="android/app/src/main/res/mipmap-${density}"
@@ -64,33 +58,22 @@ jobs:
             cp "$src" "$dst/ic_launcher_round.png"
             rm -f "$dst/ic_launcher_background.png"
           done
-
-          # Android adaptive icon: derive only density sizes from the approved
-          # adaptive-foreground.png. README in the approved pack specifies white background.
           python - <<'PY'
           from PIL import Image
           from pathlib import Path
           src = Image.open('/tmp/appicons/android/adaptive-foreground.png').convert('RGBA')
-          if src.size != (1024, 1024):
-              raise SystemExit(f'Unexpected adaptive source size: {src.size}')
-          sizes = {'mdpi':108,'hdpi':162,'xhdpi':216,'xxhdpi':324,'xxxhdpi':432}
-          for density, size in sizes.items():
-              target = Path(f'android/app/src/main/res/mipmap-{density}/ic_launcher_foreground.png')
-              src.resize((size, size), Image.Resampling.LANCZOS).save(
-                  target, format='PNG', optimize=False, compress_level=9
-              )
+          if src.size != (1024, 1024): raise SystemExit(f'Unexpected adaptive source size: {src.size}')
+          for density,size in {'mdpi':108,'hdpi':162,'xhdpi':216,'xxhdpi':324,'xxxhdpi':432}.items():
+              target=Path(f'android/app/src/main/res/mipmap-{density}/ic_launcher_foreground.png')
+              src.resize((size,size), Image.Resampling.LANCZOS).save(target,format='PNG',optimize=False,compress_level=9)
           PY
-
           cat > android/app/src/main/res/values/store_icon_colors.xml <<'XML'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <color name="store_icon_background">#FFFFFF</color>
           </resources>
           XML
-
-          for file in \
-            android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml \
-            android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml; do
+          for file in android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml; do
             cat > "$file" <<'XML'
           <?xml version="1.0" encoding="utf-8"?>
           <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
@@ -106,17 +89,9 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          paths = [
-              Path('manifest.json'),
-              Path('scripts/runtime-tax-transform.mjs'),
-              Path('test/pwa-official-icon.test.js'),
-          ]
-          old='pwa-rootfix-r1-official'
-          new='kora-store-icon-r1-official'
-          for path in paths:
-              text=path.read_text()
-              if old not in text:
-                  raise SystemExit(f'Missing expected cache key in {path}')
+          for path in [Path('manifest.json'),Path('scripts/runtime-tax-transform.mjs'),Path('test/pwa-official-icon.test.js')]:
+              text=path.read_text(); old='pwa-rootfix-r1-official'; new='kora-store-icon-r1-official'
+              if old not in text: raise SystemExit(f'Missing expected cache key in {path}')
               path.write_text(text.replace(old,new))
           PY
 
@@ -129,59 +104,21 @@ jobs:
           import assert from 'node:assert/strict';
           import { createHash } from 'node:crypto';
           import { existsSync, readFileSync } from 'node:fs';
-
-          const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
-          const pngSize = (path) => {
-            const b = readFileSync(path);
-            assert.equal(b.subarray(1,4).toString('ascii'), 'PNG', path);
-            return [b.readUInt32BE(16), b.readUInt32BE(20)];
-          };
-
-          const exact = {
-            'icon-192.png': 'e083d140f053cd45c9de98a24dd4ec8a120a490da51cf5cbae93242dc70b50c6',
-            'icon-512.png': '144f8f338eafcafeb955c7e8227acd0cb961f5e2fac9907e5c6063a6e7b0d7d3',
-            'apple-touch-icon.png': '7a34b663a33d81aff7086a76c7bafb1d8b66b15453359c0ecddd680cbedfb567',
-            'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png': '8fb78e44c886e86036d050bfde9ec0cfbcfc23ecfe61c347f42488ab537b3418',
-            'android/app/src/main/res/mipmap-mdpi/ic_launcher.png': '6bf02e47c8b907a00bdacd24f367d38aed10dd82ead9cc98749af98dcac4fe0b',
-            'android/app/src/main/res/mipmap-hdpi/ic_launcher.png': '07f8a363d6393dddc99c50f3c84f396ed3f334ce5d4ea5c11e51a87c5a074ea4',
-            'android/app/src/main/res/mipmap-xhdpi/ic_launcher.png': 'fe339b464b031b95982c532bfe6d089a72e69099bff6c76f028e77777647a68e',
-            'android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png': '73595fb89c7746f40a44a89cea4fb296ff03152f68fa6e198753fa62b27b4b2a',
-            'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png': 'e083d140f053cd45c9de98a24dd4ec8a120a490da51cf5cbae93242dc70b50c6',
-          };
-
-          test('KORA exact approved store/PWA identity bytes are immutable', () => {
-            for (const [path, expected] of Object.entries(exact)) {
-              assert.equal(existsSync(path), true, `missing ${path}`);
-              assert.equal(sha256(path), expected, `identity checksum drift: ${path}`);
-            }
-            assert.deepEqual(readFileSync('icon-192.png'), readFileSync('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'));
-          });
-
-          test('Android round launchers use only the approved package artwork', () => {
-            for (const density of ['mdpi','hdpi','xhdpi','xxhdpi','xxxhdpi']) {
-              const dir=`android/app/src/main/res/mipmap-${density}`;
-              assert.deepEqual(readFileSync(`${dir}/ic_launcher_round.png`), readFileSync(`${dir}/ic_launcher.png`));
-              assert.equal(existsSync(`${dir}/ic_launcher_background.png`), false, `legacy background survived in ${density}`);
-            }
-          });
-
-          test('Android adaptive resources use approved foreground derivatives on white', () => {
-            const sizes={mdpi:108,hdpi:162,xhdpi:216,xxhdpi:324,xxxhdpi:432};
-            for (const [density,size] of Object.entries(sizes)) {
-              assert.deepEqual(pngSize(`android/app/src/main/res/mipmap-${density}/ic_launcher_foreground.png`), [size,size]);
-            }
-            const colors=readFileSync('android/app/src/main/res/values/store_icon_colors.xml','utf8');
-            assert.match(colors, /#FFFFFF/);
-            for (const path of [
-              'android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml',
-              'android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml',
-            ]) {
-              const xml=readFileSync(path,'utf8');
-              assert.match(xml, /@color\/store_icon_background/);
-              assert.match(xml, /@mipmap\/ic_launcher_foreground/);
-              assert.doesNotMatch(xml, /ic_launcher_background/);
-            }
-          });
+          const sha256=(path)=>createHash('sha256').update(readFileSync(path)).digest('hex');
+          const pngSize=(path)=>{const b=readFileSync(path);assert.equal(b.subarray(1,4).toString('ascii'),'PNG',path);return [b.readUInt32BE(16),b.readUInt32BE(20)]};
+          const exact={
+            'icon-192.png':'e083d140f053cd45c9de98a24dd4ec8a120a490da51cf5cbae93242dc70b50c6',
+            'icon-512.png':'144f8f338eafcafeb955c7e8227acd0cb961f5e2fac9907e5c6063a6e7b0d7d3',
+            'apple-touch-icon.png':'7a34b663a33d81aff7086a76c7bafb1d8b66b15453359c0ecddd680cbedfb567',
+            'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png':'8fb78e44c886e86036d050bfde9ec0cfbcfc23ecfe61c347f42488ab537b3418',
+            'android/app/src/main/res/mipmap-mdpi/ic_launcher.png':'6bf02e47c8b907a00bdacd24f367d38aed10dd82ead9cc98749af98dcac4fe0b',
+            'android/app/src/main/res/mipmap-hdpi/ic_launcher.png':'07f8a363d6393dddc99c50f3c84f396ed3f334ce5d4ea5c11e51a87c5a074ea4',
+            'android/app/src/main/res/mipmap-xhdpi/ic_launcher.png':'fe339b464b031b95982c532bfe6d089a72e69099bff6c76f028e77777647a68e',
+            'android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png':'73595fb89c7746f40a44a89cea4fb296ff03152f68fa6e198753fa62b27b4b2a',
+            'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png':'e083d140f053cd45c9de98a24dd4ec8a120a490da51cf5cbae93242dc70b50c6'};
+          test('KORA exact approved store/PWA identity bytes are immutable',()=>{for(const [path,expected] of Object.entries(exact)){assert.equal(existsSync(path),true,`missing ${path}`);assert.equal(sha256(path),expected,`identity checksum drift: ${path}`)}assert.deepEqual(readFileSync('icon-192.png'),readFileSync('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'))});
+          test('Android round launchers use only approved artwork',()=>{for(const density of ['mdpi','hdpi','xhdpi','xxhdpi','xxxhdpi']){const dir=`android/app/src/main/res/mipmap-${density}`;assert.deepEqual(readFileSync(`${dir}/ic_launcher_round.png`),readFileSync(`${dir}/ic_launcher.png`));assert.equal(existsSync(`${dir}/ic_launcher_background.png`),false)}});
+          test('Android adaptive resources use approved foreground derivatives on white',()=>{for(const [density,size] of Object.entries({mdpi:108,hdpi:162,xhdpi:216,xxhdpi:324,xxxhdpi:432}))assert.deepEqual(pngSize(`android/app/src/main/res/mipmap-${density}/ic_launcher_foreground.png`),[size,size]);const colors=readFileSync('android/app/src/main/res/values/store_icon_colors.xml','utf8');assert.match(colors,/#FFFFFF/);for(const path of ['android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml','android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml']){const xml=readFileSync(path,'utf8');assert.match(xml,/@color\/store_icon_background/);assert.match(xml,/@mipmap\/ic_launcher_foreground/);assert.doesNotMatch(xml,/ic_launcher_background/)}});
           JS
 
       - name: Prove exact source and regression gates before commit
