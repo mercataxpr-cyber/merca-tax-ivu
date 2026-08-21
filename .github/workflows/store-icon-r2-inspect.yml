@@ -20,7 +20,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p kora-icon-output/root kora-icon-output/ios kora-icon-output/android
-          cat .github/store-icon-r2/chunks/*.b64 | base64 --decode > kora-icon-output/approved-192.png
+          : > kora-icon-output/approved-192.png
+          for f in .github/store-icon-r2/chunks/*.b64; do
+            base64 --decode "$f" >> kora-icon-output/approved-192.png
+          done
+          echo "decoded_git_blob=$(git hash-object kora-icon-output/approved-192.png)"
           test "$(git hash-object kora-icon-output/approved-192.png)" = "7fbaccec4055a9f314e55e9c91c2f19af9578a1c"
 
       - name: Render technical sizes without redesign
@@ -44,7 +48,7 @@ jobs:
             convert "$SRC" -filter Lanczos -resize "${size}x${size}!" "kora-icon-output/android/$density/ic_launcher_foreground.png"
           done
 
-      - name: Record hashes and dimensions
+      - name: Record hashes
         shell: bash
         run: |
           set -euo pipefail
