@@ -1,1 +1,0 @@
-PWA R4 implementation complete on the isolated branch. Approved 192x192, 512x512 and Apple Touch icon assets are wired into the manifest and static web build. Exact-SHA preview validation retry requested after the Vercel build-rate cooldown.

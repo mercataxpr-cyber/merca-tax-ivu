@@ -1,18 +1,20 @@
-# MercaTax IVU PR — PWA Icon R4 evidence
+# MercaTax IVU PR — Official icon source policy
 
-Status: remediation in progress; do not declare PASS until the checksum-gated import, build, tests, and visual/output verification complete.
+Source of truth is the user-approved **AppIcons** package already installed in the native project.
 
-Authoritative user-delivered package: `AppIcons (1).zip`.
+Allowed icon artwork in the repository:
 
-Exact package gate:
-- size: `5316497` bytes
-- SHA-256: `8dd8041143235b96a12f969d6a575623573688e45b0113e5a9b99b9fc5648773`
+- Android launcher/adaptive assets under `android/app/src/main/res/mipmap-*`.
+- iOS AppIcon asset set under `ios/App/App/Assets.xcassets/AppIcon.appiconset/`.
+- `logo.png` only as the approved header/logo asset.
 
-The PWA must use only these package members:
-- `android/mipmap-xxxhdpi/ic_launcher.png` -> 192x192 install icon
-- `playstore.png` -> 512x512 install icon
-- `Assets.xcassets/AppIcon.appiconset//180.png` -> Apple Touch Icon
+Removed as non-authoritative or duplicate artwork:
 
-The black generic `MT / IVU PR` artwork is explicitly rejected and must never be used as a PWA build source.
+- root `icon-192.png` / `icon-512.png` / `apple-touch-icon.png` copies.
+- `assets/icon-source.svg` placeholder artwork (`MT`).
+- legacy Android Studio default launcher vector/background resources.
+- the script that generated alternate PWA artwork from embedded/header imagery.
 
-No TAX/domain logic is modified by this remediation.
+Static/mobile builds now create runtime install aliases by copying the approved native assets byte-for-byte. They do not redraw, crop, mask, composite, or invent icon artwork.
+
+No TAX/domain logic is modified.

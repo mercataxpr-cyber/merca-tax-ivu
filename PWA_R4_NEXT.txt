@@ -1,1 +1,0 @@
-Next gate: CI import + build + tests + output verification.
