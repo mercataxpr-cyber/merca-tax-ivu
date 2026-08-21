@@ -7,9 +7,9 @@ import { basename, join, relative } from 'node:path';
 const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
 const HEADER_LOGO = 'logo.png';
 const PWA_ICONS = {
-  'icon-192.png': { width: 192, height: 192, sha256: 'bb91613a1f1a549259ead5d0100589d9ff92c190c55df15826e37e3d73c43e1d' },
-  'icon-512.png': { width: 512, height: 512, sha256: '4f14659fb8ef5a60be621fa49ab92b3f254291bbbaa94312c7f657e36d84b786' },
-  'apple-touch-icon.png': { width: 180, height: 180, sha256: '5fd1e3930783d0668bb6672c32314b1eab7f32bcd6fb7e5f731c27bf48241238' }
+  'icon-192.png': { width: 192, height: 192, sha256: 'e083d140f053cd45c9de98a24dd4ec8a120a490da51cf5cbae93242dc70b50c6' },
+  'icon-512.png': { width: 512, height: 512, sha256: 'eebe12d444a036167a41029c11d20e410c1222c65457068e4430d6ebfe02a724' },
+  'apple-touch-icon.png': { width: 180, height: 180, sha256: 'ddb8650bb4e99c29d2f8e9d2b0620b71ff911727b1f6e009428f467bb7166104' }
 };
 
 function walk(dir = '.') {
@@ -58,17 +58,27 @@ test('approved PWA install icons are frozen by dimensions and checksum', () => {
 });
 
 test('PWA manifest declares the approved 192 and 512 install assets', () => {
-  assert.equal(manifest.icons[0].src, 'icon-192.png?v=pwa-r4-approved');
+  assert.equal(manifest.icons[0].src, 'icon-192.png?v=pwa-rootfix-r1-official');
   assert.equal(manifest.icons[0].sizes, '192x192');
   assert.equal(manifest.icons[0].purpose, 'any');
-  assert.equal(manifest.icons[1].src, 'icon-512.png?v=pwa-r4-approved');
+  assert.equal(manifest.icons[1].src, 'icon-512.png?v=pwa-rootfix-r1-official');
   assert.equal(manifest.icons[1].sizes, '512x512');
   assert.equal(manifest.icons[1].purpose, 'any');
 });
 
-test('static web build ships the approved PWA assets directly', () => {
-  const source = readFileSync('scripts/build-web.mjs', 'utf8');
-  for (const path of Object.keys(PWA_ICONS)) assert.match(source, new RegExp(path.replaceAll('.', '\\.')));
-  assert.doesNotMatch(source, /officialAndroidIcon192|mipmap-xxxhdpi\/ic_launcher\.png/);
-  assert.doesNotMatch(source, /sharp\(|resize\(|composite\(|icon-source\.svg/);
+test('web and mobile builds ship the same official PWA root assets', () => {
+  for (const scriptPath of ['scripts/build-web.mjs', 'scripts/build-mobile.mjs']) {
+    const source = readFileSync(scriptPath, 'utf8');
+    for (const path of Object.keys(PWA_ICONS)) assert.match(source, new RegExp(path.replaceAll('.', '\\.')));
+    assert.doesNotMatch(source, /cpSync\(officialAndroidIcon192/);
+    assert.doesNotMatch(source, /icon-source\.svg/);
+  }
+});
+
+test('runtime metadata cannot fall back to the old inline or assets icons', () => {
+  const source = readFileSync('scripts/runtime-tax-transform.mjs', 'utf8');
+  assert.match(source, /pwa-rootfix-r1-official/);
+  assert.match(source, /apple-touch-icon\.png/);
+  assert.match(source, /icon-192\.png/);
+  assert.doesNotMatch(source, /new Notification\([^\n]+icon:'assets\/icon-192\.png'/);
 });
