@@ -14,7 +14,10 @@ const files = [
   'privacy.html',
   'terms.html',
   'legal-links.js',
-  'logo.png'
+  'logo.png',
+  'icon-192.png',
+  'icon-512.png',
+  'apple-touch-icon.png'
 ];
 
 for (const file of files) {
@@ -24,21 +27,15 @@ for (const dir of ['assets', 'src']) {
   if (existsSync(dir)) cpSync(dir, `${out}/${dir}`, { recursive: true });
 }
 
-// Source of truth: only assets from the user-approved AppIcons package.
-const officialAndroidIcon192 = 'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png';
-const officialIosIcon1024 = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
-for (const source of [officialAndroidIcon192, officialIosIcon1024]) {
-  if (!existsSync(source)) throw new Error(`Approved MercaTax icon asset is missing: ${source}`);
+// PWA install source of truth: the user-approved MercaTax icon set committed at repo root.
+// Do not substitute native launcher artwork here; PWA and native packaging are separate concerns.
+for (const source of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
+  if (!existsSync(source)) throw new Error(`Approved PWA install icon is missing: ${source}`);
 }
 
-// Runtime aliases are exact byte-for-byte copies of approved package assets.
-// No alternate icon artwork is stored at repository root.
-cpSync(officialAndroidIcon192, `${out}/icon-192.png`);
-cpSync(officialIosIcon1024, `${out}/icon-512.png`);
-cpSync(officialAndroidIcon192, `${out}/apple-touch-icon.png`);
-
-// Preserve the approved 1024px AppIcon for branded report preview/print/export.
-const reportLogoSource = officialIosIcon1024;
+// Preserve the approved native 1024px AppIcon for branded report preview/print/export only.
+const reportLogoSource = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
+if (!existsSync(reportLogoSource)) throw new Error(`Approved report logo asset is missing: ${reportLogoSource}`);
 const reportLogoDir = `${out}/ios/App/App/Assets.xcassets/AppIcon.appiconset`;
 mkdirSync(reportLogoDir, { recursive: true });
 cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
@@ -53,4 +50,4 @@ writeFileSync(
   transformAppSource(readFileSync('src/app.js', 'utf8')),
 );
 
-console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation and approved AppIcons-only install assets.');
+console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation and approved PWA install icons.');
