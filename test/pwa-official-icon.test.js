@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
+import { transformAppSource, transformIndexSource } from '../scripts/runtime-tax-transform.mjs';
 
 const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
 const HEADER_LOGO = 'logo.png';
@@ -78,10 +79,15 @@ test('web and mobile builds ship the same official PWA root assets', () => {
   }
 });
 
-test('runtime metadata cannot fall back to the old inline or assets icons', () => {
-  const source = readFileSync('scripts/runtime-tax-transform.mjs', 'utf8');
-  assert.match(source, /pwa-rootfix-r1-official/);
-  assert.match(source, /apple-touch-icon\.png/);
-  assert.match(source, /icon-192\.png/);
-  assert.doesNotMatch(source, /new Notification\([^\n]+icon:'assets\/icon-192\.png'/);
+test('runtime metadata resolves only to the rootfix PWA identity', () => {
+  const transformedIndex = transformIndexSource(readFileSync('index.html', 'utf8'));
+  assert.match(transformedIndex, /manifest\.json\?v=pwa-rootfix-r1-official/);
+  assert.match(transformedIndex, /apple-touch-icon\.png\?v=pwa-rootfix-r1-official/);
+  assert.match(transformedIndex, /icon-192\.png\?v=pwa-rootfix-r1-official/);
+  assert.doesNotMatch(transformedIndex, /assets\/apple-touch-icon\.png/);
+  assert.doesNotMatch(transformedIndex, /<link rel="icon" href="data:image/);
+
+  const transformedApp = transformAppSource(readFileSync('src/app.js', 'utf8'));
+  assert.match(transformedApp, /icon:'icon-192\.png\?v=pwa-rootfix-r1-official'/);
+  assert.doesNotMatch(transformedApp, /icon:'assets\/icon-192\.png'/);
 });
