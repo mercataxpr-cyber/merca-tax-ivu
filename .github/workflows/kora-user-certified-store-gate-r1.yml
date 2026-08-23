@@ -1,0 +1,159 @@
+name: KORA User-Certified Store Gate R1
+
+on:
+  push:
+    branches:
+      - teki/pwa-icon-install-preview-r2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kora-user-certified-store-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  certify-user-approved-candidate:
+    runs-on: macos-26
+    timeout-minutes: 50
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Prove certified lineage and frozen main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git merge-base --is-ancestor 419f2d7f3b60d2fde410be2e40b6a7d7b55a9383 HEAD
+          git merge-base --is-ancestor 23a016f08385439943728056319936bc581dece2 HEAD
+          git merge-base --is-ancestor e54ceda5be6751600127abeeb28853002a4eaf02 HEAD
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "26bbdc4529ad7d814305ef0e22499e4ab5be75ca"
+          echo "LINEAGE_AND_MAIN_ISOLATION=PASS"
+
+      - name: Verify user-certified PWA identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object icon-192.png)" = "4eae27ff1365eb7f6e56bdc5c146c6b7999d2778"
+          test "$(git hash-object icon-512.png)" = "1100d87dcbbb810813ec0066c3d3e9e8b6cea0a6"
+          grep -q '"display": "standalone"' manifest.json
+          grep -q '/icon-192.png?v=official-preview-r2' manifest.json
+          grep -q '/icon-512.png?v=official-preview-r2' manifest.json
+          test -f sw.js
+          test -f pwa-register.js
+          grep -q 'pwa-register.js' index.html
+          echo "USER_CERTIFIED_PWA_IDENTITY=PASS"
+
+      - name: Verify Apple toolchain floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE_VERSION="$(xcodebuild -version | awk '/^Xcode / {print $2}')"
+          IOS_SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          test "${XCODE_VERSION%%.*}" -ge 26
+          test "${IOS_SDK_VERSION%%.*}" -ge 26
+          echo "XCODE=$XCODE_VERSION IOS_SDK=$IOS_SDK_VERSION"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run full web/domain/TAX gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run gate
+          npm run test:tax
+          npm run test:mobile-tax-parity
+          npm run test:backup
+
+      - name: Build and prove mobile runtime parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run mobile:build
+          npm run mobile:gate
+          npx cap sync
+          npm run mobile:tax-parity
+
+      - name: Build Android debug and unsigned release AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug bundleRelease --no-daemon
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          test -f app/build/outputs/bundle/release/app-release.aab
+          echo "ANDROID_BUILD=PASS"
+
+      - name: Verify Android packaged runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          unzip -p "$APK" assets/public/index.html > /tmp/apk-index.html
+          unzip -p "$AAB" base/assets/public/index.html > /tmp/aab-index.html
+          cmp www/index.html /tmp/apk-index.html
+          cmp www/index.html /tmp/aab-index.html
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/apk-index.html
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/aab-index.html
+          echo "ANDROID_RUNTIME_PARITY=PASS"
+
+      - name: Build iOS Release simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mercatax-release
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Release -derivedDataPath /tmp/mercatax-release CODE_SIGNING_ALLOWED=NO build
+          test -d /tmp/mercatax-release/Build/Products/Release-iphonesimulator/App.app
+          echo "IOS_RELEASE_SIMULATOR=PASS"
+
+      - name: Archive unsigned iOS Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/MercaTaxIVUPR.xcarchive
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/MercaTaxIVUPR.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO archive
+          APP="/tmp/MercaTaxIVUPR.xcarchive/Products/Applications/App.app"
+          test -d "$APP"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "com.mercatax.ivupr"
+          test -f "$APP/PrivacyInfo.xcprivacy"
+          cmp www/index.html "$APP/public/index.html"
+          echo "IOS_UNSIGNED_DEVICE_ARCHIVE=PASS"
+
+      - name: Verify clean candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain)"
+          echo "KORA_USER_CERTIFIED_STORE_GATE=PASS"
+
+      - name: Upload Android validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-user-certified-${{ github.sha }}
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
