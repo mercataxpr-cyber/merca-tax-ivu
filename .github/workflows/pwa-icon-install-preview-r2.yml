@@ -1,0 +1,109 @@
+name: PWA Icon Install Preview R2
+
+on:
+  push:
+    branches:
+      - teki/pwa-icon-install-preview-r2
+    paths:
+      - '.github/pwa-preview/**'
+      - '.github/workflows/pwa-icon-install-preview-r2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-preview:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout preview branch
+        uses: actions/checkout@v5
+        with:
+          ref: teki/pwa-icon-install-preview-r2
+          fetch-depth: 0
+
+      - name: Recover exact approved Android artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/pwa-preview/android-192.part*.b64 | tr -d '\r\n' | base64 --decode > /tmp/approved-android-192.webp
+          echo 'd46e9fd034096ac4f6a63df07233de983397d36cb077bfc97c6e418fcfcde313  /tmp/approved-android-192.webp' | sha256sum -c -
+          python -m pip install --quiet 'Pillow==11.3.0'
+          python3 - <<'PY'
+          from PIL import Image
+          from hashlib import sha256
+          p='/tmp/approved-android-192.webp'
+          im=Image.open(p).convert('RGBA')
+          assert im.size == (192,192), im.size
+          assert sha256(im.tobytes()).hexdigest() == 'a2c7f657be5ac16376ae10f4fc241d38792787cf6befc1f6572c966a0ff37134'
+          im.save('icon-192.png', optimize=False)
+          im.resize((512,512), Image.Resampling.LANCZOS).save('icon-512.png', optimize=False)
+          im.resize((180,180), Image.Resampling.LANCZOS).save('apple-touch-icon.png', optimize=False)
+          im.resize((32,32), Image.Resampling.LANCZOS).save('favicon-32.png', optimize=False)
+          im.resize((32,32), Image.Resampling.LANCZOS).save('favicon.ico')
+          print('APPROVED_ANDROID_PIXELS=PASS')
+          PY
+
+      - name: Make the preview installable and remove generic fallback icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > manifest.json <<'JSON'
+          {
+            "name": "MercaTax IVU PR",
+            "short_name": "MercaTax IVU",
+            "description": "Aplicación para comerciantes de Puerto Rico que registra ventas, calcula IVU estatal y municipal, genera reportes y organiza la radicación mensual.",
+            "id": "/?pwa=icon-preview-r2",
+            "start_url": "/?pwa=icon-preview-r2",
+            "scope": "/",
+            "display": "standalone",
+            "orientation": "portrait",
+            "background_color": "#111418",
+            "theme_color": "#D4AF37",
+            "lang": "es-PR",
+            "icons": [
+              { "src": "/icon-192.png?v=official-preview-r2", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+              { "src": "/icon-512.png?v=official-preview-r2", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+            ]
+          }
+          JSON
+
+          cat > sw.js <<'JS'
+          const CACHE = 'mercatax-pwa-icon-preview-r2';
+          self.addEventListener('install', () => self.skipWaiting());
+          self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
+          self.addEventListener('fetch', event => {
+            if (event.request.method !== 'GET') return;
+            const url = new URL(event.request.url);
+            if (url.origin !== self.location.origin) return;
+            event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+          });
+          JS
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          s=re.sub(r'<link rel="manifest"[^>]*>', '<link rel="manifest" href="/manifest.json?v=official-preview-r2">', s, count=1)
+          s=re.sub(r'<link rel="apple-touch-icon"[^>]*>', '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=official-preview-r2">', s, count=1)
+          s=re.sub(r'<link rel="icon" href="data:image/[^\"]+">', '<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=official-preview-r2">\n<link rel="shortcut icon" href="/favicon.ico?v=official-preview-r2">', s, count=1, flags=re.S)
+          if 'mobile-web-app-capable' not in s:
+              s=s.replace('<meta name="theme-color" content="#111418">', '<meta name="theme-color" content="#111418">\n<meta name="mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-title" content="MercaTax IVU PR">', 1)
+          marker='mercatax-pwa-preview-register-r2'
+          if marker not in s:
+              reg='''\n<script id="mercatax-pwa-preview-register-r2">\nif ("serviceWorker" in navigator) {\n  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js?v=official-preview-r2", { scope: "/" }));\n}\n</script>\n'''
+              s=s.replace('</body>', reg + '</body>', 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit preview assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MercaTax Preview Bot'
+          git config user.email 'mercataxpr@gmail.com'
+          git add icon-192.png icon-512.png apple-touch-icon.png favicon-32.png favicon.ico manifest.json sw.js index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(preview): official PWA install icon and metadata'
+          git push origin HEAD:teki/pwa-icon-install-preview-r2
