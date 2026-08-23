@@ -1,0 +1,2 @@
+Source: authenticated user-approved AppIcons (1).zip
+Purpose: isolated install-icon validation only.
