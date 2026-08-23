@@ -35,11 +35,17 @@ jobs:
 
           mapfile -t ANDROID_CHUNKS < <(git ls-tree -r --name-only origin/mobi-nova/store-icon-identity-r2 .github/store-icon-r2/chunks | sort)
           test ${#ANDROID_CHUNKS[@]} -gt 0
-          for f in "${ANDROID_CHUNKS[@]}"; do git show "origin/mobi-nova/store-icon-identity-r2:$f"; done | tr -d '\r\n' | base64 --decode > /tmp/kora-approved/android-192.png
+          : > /tmp/kora-approved/android-192.png
+          for f in "${ANDROID_CHUNKS[@]}"; do
+            git show "origin/mobi-nova/store-icon-identity-r2:$f" | tr -d '\r\n' | base64 --decode >> /tmp/kora-approved/android-192.png
+          done
           test "$(git hash-object /tmp/kora-approved/android-192.png)" = "$EXPECTED_ANDROID_192_GIT_BLOB"
           echo "$EXPECTED_ANDROID_192_SHA256  /tmp/kora-approved/android-192.png" | sha256sum -c -
 
-          cat .github/kora-payload/ios1024/*.b64 | tr -d '\r\n' | base64 --decode > /tmp/kora-approved/ios-1024.jxl
+          : > /tmp/kora-approved/ios-1024.jxl
+          for f in .github/kora-payload/ios1024/*.b64; do
+            tr -d '\r\n' < "$f" | base64 --decode >> /tmp/kora-approved/ios-1024.jxl
+          done
           echo "$EXPECTED_IOS_JXL_SHA256  /tmp/kora-approved/ios-1024.jxl" | sha256sum -c -
 
           sudo apt-get update -qq
