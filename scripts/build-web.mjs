@@ -50,6 +50,88 @@ builtIndex = builtIndex.replace(
   '<link rel="manifest" href="manifest.json?v=pwa-rootfix-r1-official">',
   '<link rel="manifest" crossorigin="use-credentials" href="manifest.json?v=icon-preview-r4-auth">',
 );
+
+// Preview-only splash correction. The source HTML still embeds legacy splash artwork;
+// hide that artwork at runtime and render the already-approved PWA 512 icon instead.
+const splashStyle = `
+<style id="pwa-splash-r5">
+.splash,
+#splash-screen {
+  position: fixed !important;
+  inset: 0 !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)) !important;
+  background: #050608 !important;
+}
+.splashContent,
+.splash-content {
+  width: 100% !important;
+  max-width: 420px !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  transform: none !important;
+}
+.splashLogo,
+.splash-logo {
+  display: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+.splashContent::before,
+.splash-content::before {
+  content: "";
+  display: block;
+  width: min(180px, 44vw) !important;
+  height: min(180px, 44vw) !important;
+  flex: 0 0 auto;
+  margin: 0 auto 18px !important;
+  background: url('/icon-512.png?v=splash-r5') center center / contain no-repeat !important;
+  filter: drop-shadow(0 8px 22px rgba(0,0,0,.28));
+}
+.splashTitle,
+.splash-content h1 {
+  max-width: 100% !important;
+  margin: 0 auto 10px !important;
+  font-size: clamp(26px, 7vw, 34px) !important;
+  line-height: 1.08 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  transform: none !important;
+}
+.splashSub,
+.splash-slogan,
+.splash-version,
+.splash-content p {
+  max-width: 100% !important;
+  white-space: normal !important;
+  overflow: visible !important;
+}
+@media (max-height: 620px) {
+  .splashContent::before,
+  .splash-content::before {
+    width: min(136px, 36vw) !important;
+    height: min(136px, 36vw) !important;
+    margin-bottom: 12px !important;
+  }
+  .splashTitle,
+  .splash-content h1 {
+    font-size: clamp(23px, 6vw, 30px) !important;
+  }
+}
+</style>`;
+if (!builtIndex.includes('pwa-splash-r5')) {
+  builtIndex = builtIndex.replace('</head>', `${splashStyle}</head>`);
+}
+
 if (!builtIndex.includes('/pwa-register.js')) {
   builtIndex = builtIndex.replace(
     '</body>',
@@ -62,4 +144,4 @@ writeFileSync(
   transformAppSource(readFileSync('src/app.js', 'utf8')),
 );
 
-console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation and installable PWA assets.');
+console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, installable PWA assets and centered official splash identity.');
