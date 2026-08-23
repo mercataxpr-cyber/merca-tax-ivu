@@ -1,0 +1,43 @@
+name: PWA Preview Build Compatibility R2
+
+on:
+  push:
+    branches:
+      - teki/pwa-icon-install-preview-r2
+    paths:
+      - '.github/workflows/pwa-preview-build-compat-r2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  restore-build-contract-markers:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: teki/pwa-icon-install-preview-r2
+          fetch-depth: 0
+      - name: Restore pre-transform PWA markers without changing published identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('<link rel="manifest" href="/manifest.json?v=official-preview-r2">', '<link rel="manifest" href="manifest.json">', 1)
+          s=s.replace('<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=official-preview-r2">', '<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">', 1)
+          preview='<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=official-preview-r2">\n<link rel="shortcut icon" href="/favicon.ico?v=official-preview-r2">'
+          legacy='<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP8z8AARQMBgQEdjwAAAABJRU5ErkJggg==">'
+          if preview in s:
+              s=s.replace(preview, legacy, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          git config user.name 'MercaTax Preview Bot'
+          git config user.email 'mercataxpr@gmail.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(preview): satisfy web build PWA transform contract'
+          git push origin HEAD:teki/pwa-icon-install-preview-r2
