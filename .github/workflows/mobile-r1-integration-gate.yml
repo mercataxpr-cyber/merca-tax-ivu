@@ -1,0 +1,34 @@
+name: Mobile R1 Integration Gate
+
+on:
+  push:
+    branches:
+      - store/mobile-r1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout integration SHA
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify integration ancestry
+        shell: bash
+        run: |
+          git merge-base --is-ancestor 46d409d3fe2276aa56bccba987e0cef1d10e6bb2 HEAD
+          git merge-base --is-ancestor ef951ed15837e480e484f8c740650b6f9031f3d5 HEAD
+
+      - name: Run R1 gate
+        run: npm run gate

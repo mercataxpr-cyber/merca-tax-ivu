@@ -4,12 +4,43 @@
   "description": "MercaTax IVU PR - Calculadora y registro de IVU para comerciantes en Puerto Rico",
   "type": "module",
   "scripts": {
-    "dev": "node server.js",
-    "build": "echo 'No build required'",
-    "start": "node server.js",
-    "lint": "node -c server.js script.js"
+    "dev": "npm run build && node server.js",
+    "build": "node scripts/build.mjs && node scripts/build-web.mjs",
+    "start": "npm run build && node server.js",
+    "lint": "node scripts/lint.mjs",
+    "test": "node --test test/*.test.js",
+    "test:ivu": "node --test test/ivu.test.js",
+    "test:rounding": "node --test test/rounding.test.js",
+    "test:tax": "node --test test/ivu.test.js test/rounding.test.js test/tax-remediation.test.js test/tax-calendar-contract.test.js test/runtime-tax-integration.test.js",
+    "test:multi-business": "node --test test/multi-business.test.js",
+    "test:backup": "node --test test/backup.test.js",
+    "test:malformed": "node --test test/malformed-input.test.js",
+    "test:mobile-tax-parity": "node --test test/mobile-tax-runtime-parity.test.js",
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "gate": "npm run build && npm run lint && npm test && npm run secret-scan",
+    "mobile:build": "npm run build && node scripts/build-mobile.mjs",
+    "mobile:sync": "npm run mobile:build && cap sync",
+    "mobile:open:ios": "npm run mobile:sync && cap open ios",
+    "mobile:open:android": "npm run mobile:sync && cap open android",
+    "mobile:gate": "node scripts/mobile-foundation-gate.mjs",
+    "mobile:tax-parity": "node scripts/mobile-tax-runtime-parity.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "8.4.2",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/browser": "8.0.4",
+    "@capacitor/core": "8.4.2",
+    "@capacitor/filesystem": "8.1.2",
+    "@capacitor/ios": "8.4.2",
+    "@capacitor/local-notifications": "8.2.1",
+    "@capacitor/network": "8.0.1",
+    "@capacitor/preferences": "8.0.1",
+    "@capacitor/share": "8.0.1",
+    "@capacitor/splash-screen": "8.0.2",
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.4.2",
+    "esbuild": "0.28.2"
   }
 }

@@ -1,0 +1,155 @@
+name: R1-B Capacitor Build Gate
+
+on:
+  push:
+    branches:
+      - mobi/capacitor-r1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r1b-capacitor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify-candidate:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Prove certified SHA, ancestry and main isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="802c50beba2ea9ff94c93145c697375904d09475"
+          EXPECTED_MAIN="26bbdc4529ad7d814305ef0e22499e4ab5be75ca"
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          test "$GITHUB_REF_NAME" = "mobi/capacitor-r1"
+          test "$CHECKED_OUT_SHA" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$BASE" HEAD
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          echo "CERTIFIED_SHA=$CHECKED_OUT_SHA"
+          echo "R1-B BASE/MAIN/SHA gate PASS"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          echo "LOCKED DEPENDENCIES gate PASS"
+
+      - name: Verify clean tracked checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=no)"
+          echo "PRE-SYNC TRACKED WORKTREE CLEAN=PASS"
+
+      - name: Build local web bundle and sync committed native projects
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run mobile:build
+          npx cap sync
+          test -f ios/App/App/public/index.html
+          test -f android/app/src/main/assets/public/index.html
+          echo "LOCAL ASSETS/OFFLINE packaging gate PASS"
+
+      - name: Run domain, web, permission and mobile gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run gate
+          npm run mobile:gate
+          npm run test:backup
+          ! grep -RniE 'firebase|supabase|gemini|@capacitor/push-notifications' \
+            capacitor.config.json package.json src/mobile-native-entry.js ios android \
+            --exclude-dir=build --exclude-dir=.gradle --exclude='*.lock'
+          echo "R1-B WEB/DOMAIN/PERMISSION/NO-SECRETS gates PASS"
+
+      - name: Build Android debug
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          echo "ANDROID_BUILD_COMMAND=cd android && ./gradlew assembleDebug --no-daemon"
+          echo "ANDROID BUILD gate PASS"
+
+      - name: Upload Android debug artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-r1b-android-debug-${{ github.sha }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Build iOS simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mercatax-derived
+          if [ -d ios/App/App.xcworkspace ]; then
+            echo "IOS_BUILD_COMMAND=xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath /tmp/mercatax-derived CODE_SIGNING_ALLOWED=NO build"
+            xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath /tmp/mercatax-derived CODE_SIGNING_ALLOWED=NO build
+          else
+            echo "IOS_BUILD_COMMAND=xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath /tmp/mercatax-derived CODE_SIGNING_ALLOWED=NO build"
+            xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath /tmp/mercatax-derived CODE_SIGNING_ALLOWED=NO build
+          fi
+          test -d /tmp/mercatax-derived/Build/Products/Debug-iphonesimulator/App.app
+          echo "IOS_SCHEME=App"
+          echo "IOS BUILD gate PASS"
+
+      - name: Clean-launch and lifecycle iOS simulator smoke gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          UDID="$(xcrun simctl list devices available | grep -m1 'iPhone' | grep -Eo '[0-9A-F-]{36}' || true)"
+          test -n "$UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" /tmp/mercatax-derived/Build/Products/Debug-iphonesimulator/App.app
+          FIRST="$(xcrun simctl launch "$UDID" com.mercatax.ivupr)"
+          echo "$FIRST" | grep -q 'com.mercatax.ivupr:'
+          xcrun simctl terminate "$UDID" com.mercatax.ivupr
+          SECOND="$(xcrun simctl launch "$UDID" com.mercatax.ivupr)"
+          echo "$SECOND" | grep -q 'com.mercatax.ivupr:'
+          xcrun simctl terminate "$UDID" com.mercatax.ivupr || true
+          xcrun simctl shutdown "$UDID" || true
+          echo "IOS CLEAN-LAUNCH/LIFECYCLE gate PASS"
+
+      - name: Verify no tracked generated-file drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Tracked status after sync/build:"
+          git status --short --untracked-files=no
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain --untracked-files=no)"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "WORKTREE_TRACKED_CLEAN=PASS"
+          echo "CERTIFIED_SHA=$(git rev-parse HEAD)"
+          echo "NO_COMMIT_OR_PUSH_IN_CI=PASS"

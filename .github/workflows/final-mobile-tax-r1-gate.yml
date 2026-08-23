@@ -1,0 +1,267 @@
+name: Final Mobile + TAX R1 Integration Gate
+
+on:
+  push:
+    branches:
+      - integration/mobile-tax-r1-final
+      - mobi/r2-final-parity-gate-remediation
+      - release/store-ready-r1-candidate
+  pull_request:
+    branches:
+      - mobi/r2-final-parity-gate-remediation
+      - integration/mobile-tax-r1-final
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: final-mobile-tax-r1-${{ github.event_name }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  certify-integrated-candidate:
+    runs-on: macos-26
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout exact integrated candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Prove integration ancestry and main isolation
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          MOBI="419f2d7f3b60d2fde410be2e40b6a7d7b55a9383"
+          TAX="23a016f08385439943728056319936bc581dece2"
+          EXPECTED_MAIN="26bbdc4529ad7d814305ef0e22499e4ab5be75ca"
+          CERT_BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          case "$CERT_BRANCH" in
+            integration/mobile-tax-r1-final|mobi/r2-final-parity-gate-remediation|release/store-ready-r1-candidate) ;;
+            *) echo "Unexpected certification branch: $CERT_BRANCH" >&2; exit 1 ;;
+          esac
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          git merge-base --is-ancestor "$MOBI" HEAD
+          git merge-base --is-ancestor "$TAX" HEAD
+          git merge-base --is-ancestor "e54ceda5be6751600127abeeb28853002a4eaf02" HEAD
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          echo "INTEGRATED_SHA=$(git rev-parse HEAD)"
+          echo "MOBI_ANCESTOR=$MOBI"
+          echo "TAX_ANCESTOR=$TAX"
+          echo "R2_BASE_ANCESTOR=e54ceda5be6751600127abeeb28853002a4eaf02"
+          echo "MAIN_ISOLATION=PASS"
+
+      - name: Verify App Store Xcode and iOS SDK floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE_VERSION="$(xcodebuild -version | awk '/^Xcode / {print $2}')"
+          IOS_SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          XCODE_MAJOR="${XCODE_VERSION%%.*}"
+          IOS_SDK_MAJOR="${IOS_SDK_VERSION%%.*}"
+          test "$XCODE_MAJOR" -ge 26
+          test "$IOS_SDK_MAJOR" -ge 26
+          echo "XCODE_VERSION=$XCODE_VERSION"
+          echo "IOS_SDK_VERSION=$IOS_SDK_VERSION"
+          echo "APP_STORE_TOOLCHAIN_FLOOR=PASS"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run full web and domain gate
+        run: npm run gate
+
+      - name: Run focused TAX regression gate
+        run: npm run test:tax
+
+      - name: Run causal mobile TAX build-parity regression test
+        run: npm run test:mobile-tax-parity
+
+      - name: Run mobile foundation and backup gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run mobile:gate
+          npm run test:backup
+
+      - name: Build, sync, and prove certified TAX runtime parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run mobile:build
+          npx cap sync
+          npm run mobile:tax-parity
+
+      - name: Build Android debug and unsigned release AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug bundleRelease --no-daemon
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          test -f app/build/outputs/bundle/release/app-release.aab
+          echo "ANDROID_DEBUG_APK=PASS"
+          echo "ANDROID_UNSIGNED_RELEASE_AAB=PASS"
+
+      - name: Verify Android packaged runtime and hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          unzip -p "$APK" assets/public/index.html > /tmp/android-apk-index.html
+          unzip -p "$APK" assets/public/src/app.js > /tmp/android-apk-app.js
+          unzip -p "$AAB" base/assets/public/index.html > /tmp/android-aab-index.html
+          unzip -p "$AAB" base/assets/public/src/app.js > /tmp/android-aab-app.js
+          cmp www/index.html /tmp/android-apk-index.html
+          cmp www/src/app.js /tmp/android-apk-app.js
+          cmp www/index.html /tmp/android-aab-index.html
+          cmp www/src/app.js /tmp/android-aab-app.js
+          grep -q 'legal-links.js' /tmp/android-apk-index.html
+          grep -q 'legal-links.js' /tmp/android-aab-index.html
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/android-apk-index.html
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/android-aab-index.html
+          echo "ANDROID_APK_SHA256=$(shasum -a 256 "$APK" | awk '{print $1}')"
+          echo "ANDROID_AAB_SHA256=$(shasum -a 256 "$AAB" | awk '{print $1}')"
+          echo "ANDROID_PACKAGED_RUNTIME_PARITY=PASS"
+
+      - name: Verify Android Store manifest guardrails
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eq '^[[:space:]]*targetSdkVersion[[:space:]]*=[[:space:]]*36[[:space:]]*$' android/variables.gradle
+          MERGED_MANIFEST="$(find android/app/build/intermediates -path '*release*' -name AndroidManifest.xml | grep '/merged' | head -n 1 || true)"
+          test -n "$MERGED_MANIFEST"
+          grep -q 'android.permission.INTERNET' "$MERGED_MANIFEST"
+          grep -q 'android:allowBackup="false"' "$MERGED_MANIFEST"
+          grep -q 'android:fullBackupContent="false"' "$MERGED_MANIFEST"
+          ! grep -Eq 'android.permission.(CAMERA|ACCESS_FINE_LOCATION|ACCESS_COARSE_LOCATION|READ_CONTACTS|WRITE_CONTACTS|RECORD_AUDIO|READ_PHONE_STATE|READ_CALL_LOG|WRITE_CALL_LOG)' "$MERGED_MANIFEST"
+          echo "ANDROID_TARGET_SDK_36=PASS"
+          echo "ANDROID_SENSITIVE_PERMISSION_GUARDRAIL=PASS"
+
+      - name: Build iOS Debug simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mercatax-derived-debug
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath /tmp/mercatax-derived-debug CODE_SIGNING_ALLOWED=NO build
+          test -d /tmp/mercatax-derived-debug/Build/Products/Debug-iphonesimulator/App.app
+          echo "IOS_DEBUG_SIMULATOR=PASS"
+
+      - name: Build iOS Release simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mercatax-derived-release
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Release -derivedDataPath /tmp/mercatax-derived-release CODE_SIGNING_ALLOWED=NO build
+          test -d /tmp/mercatax-derived-release/Build/Products/Release-iphonesimulator/App.app
+          echo "IOS_RELEASE_SIMULATOR=PASS"
+
+      - name: Verify iOS simulator packaged runtime and privacy manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="/tmp/mercatax-derived-release/Build/Products/Release-iphonesimulator/App.app"
+          test -f "$APP/public/index.html"
+          test -f "$APP/public/src/app.js"
+          cmp www/index.html "$APP/public/index.html"
+          cmp www/src/app.js "$APP/public/src/app.js"
+          grep -q 'legal-links.js' "$APP/public/index.html"
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' "$APP/public/index.html"
+          test -f "$APP/PrivacyInfo.xcprivacy"
+          plutil -lint "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'NSPrivacyAccessedAPICategoryUserDefaults' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'CA92.1' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'NSPrivacyAccessedAPICategoryFileTimestamp' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'C617.1' "$APP/PrivacyInfo.xcprivacy"
+          echo "IOS_SIMULATOR_RUNTIME_PARITY=PASS"
+          echo "IOS_SIMULATOR_PRIVACY_MANIFEST=PASS"
+
+      - name: Archive unsigned iOS Release for device
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/MercaTaxIVUPR.xcarchive
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/MercaTaxIVUPR.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO archive
+          APP="/tmp/MercaTaxIVUPR.xcarchive/Products/Applications/App.app"
+          test -d "$APP"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "com.mercatax.ivupr"
+          test -f "$APP/public/index.html"
+          test -f "$APP/PrivacyInfo.xcprivacy"
+          cmp www/index.html "$APP/public/index.html"
+          grep -q 'NSPrivacyAccessedAPICategoryUserDefaults' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'CA92.1' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'NSPrivacyAccessedAPICategoryFileTimestamp' "$APP/PrivacyInfo.xcprivacy"
+          grep -q 'C617.1' "$APP/PrivacyInfo.xcprivacy"
+          echo "IOS_UNSIGNED_DEVICE_ARCHIVE=PASS"
+          echo "IOS_DEVICE_ARCHIVE_PRIVACY=PASS"
+
+      - name: Clean-launch integrated iOS candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          UDID="$(xcrun simctl list devices available | grep -m1 'iPhone' | grep -Eo '[0-9A-F-]{36}' || true)"
+          test -n "$UDID"
+          python3 - "$UDID" <<'PY'
+          import subprocess, sys, time
+          udid = sys.argv[1]
+          subprocess.run(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          deadline = time.time() + 180
+          while time.time() < deadline:
+              out = subprocess.run(["xcrun", "simctl", "list", "devices"], capture_output=True, text=True, check=True).stdout
+              line = next((line for line in out.splitlines() if udid in line), "")
+              if "(Booted)" in line:
+                  sys.exit(0)
+              time.sleep(2)
+          raise SystemExit("Simulator did not reach Booted state within certification bound")
+          PY
+          APP="/tmp/mercatax-derived-release/Build/Products/Release-iphonesimulator/App.app"
+          xcrun simctl install "$UDID" "$APP"
+          FIRST="$(xcrun simctl launch "$UDID" com.mercatax.ivupr)"
+          echo "$FIRST" | grep -q 'com.mercatax.ivupr:'
+          xcrun simctl terminate "$UDID" com.mercatax.ivupr
+          SECOND="$(xcrun simctl launch "$UDID" com.mercatax.ivupr)"
+          echo "$SECOND" | grep -q 'com.mercatax.ivupr:'
+          xcrun simctl terminate "$UDID" com.mercatax.ivupr || true
+          xcrun simctl shutdown "$UDID" || true
+          echo "IOS_RELEASE_CLEAN_LAUNCH=PASS"
+
+      - name: Verify no tracked generated-file drift
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain)"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          echo "FINAL_INTEGRATION_WORKTREE_CLEAN=PASS"
+
+      - name: Upload Android validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-final-r1-android-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
