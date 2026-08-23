@@ -46,10 +46,14 @@ cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
 // Static hosting must serve the same certified TAX runtime as server.js.
 let builtIndex = injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')));
+builtIndex = builtIndex.replace(
+  '<link rel="manifest" href="manifest.json?v=pwa-rootfix-r1-official">',
+  '<link rel="manifest" crossorigin="use-credentials" href="manifest.json?v=icon-preview-r4-auth">',
+);
 if (!builtIndex.includes('/pwa-register.js')) {
   builtIndex = builtIndex.replace(
     '</body>',
-    '<script src="/pwa-register.js?v=icon-preview-r3"></script></body>',
+    '<script src="/pwa-register.js?v=icon-preview-r4-auth"></script></body>',
   );
 }
 writeFileSync(`${out}/index.html`, builtIndex);
