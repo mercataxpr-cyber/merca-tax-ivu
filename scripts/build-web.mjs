@@ -11,6 +11,8 @@ const files = [
   'style.css',
   'mobile-r1.css',
   'manifest.json',
+  'sw.js',
+  'pwa-register.js',
   'privacy.html',
   'terms.html',
   'legal-links.js',
@@ -32,6 +34,8 @@ for (const dir of ['assets', 'src']) {
 for (const source of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
   if (!existsSync(source)) throw new Error(`Approved PWA install icon is missing: ${source}`);
 }
+if (!existsSync('sw.js')) throw new Error('PWA service worker is missing: sw.js');
+if (!existsSync('pwa-register.js')) throw new Error('PWA registration script is missing: pwa-register.js');
 
 // Preserve the approved native 1024px AppIcon for branded report preview/print/export only.
 const reportLogoSource = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
@@ -41,13 +45,17 @@ mkdirSync(reportLogoDir, { recursive: true });
 cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
 // Static hosting must serve the same certified TAX runtime as server.js.
-writeFileSync(
-  `${out}/index.html`,
-  injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8'))),
-);
+let builtIndex = injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')));
+if (!builtIndex.includes('/pwa-register.js')) {
+  builtIndex = builtIndex.replace(
+    '</body>',
+    '<script src="/pwa-register.js?v=icon-preview-r3"></script></body>',
+  );
+}
+writeFileSync(`${out}/index.html`, builtIndex);
 writeFileSync(
   `${out}/src/app.js`,
   transformAppSource(readFileSync('src/app.js', 'utf8')),
 );
 
-console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation and approved PWA install icons.');
+console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation and installable PWA assets.');
