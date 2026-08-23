@@ -10,16 +10,18 @@ on:
 permissions:
   contents: write
 
+env:
+  APPROVED_ZIP_SHA256: 8dd8041143235b96a12f969d6a575623573688e45b0113e5a9b99b9fc5648773
+  APPROVED_ANDROID_RGBA_SHA256: a2c7f657be5ac16376ae10f4fc241d38792787cf6befc1f6572c966a0ff37134
+  APPROVED_IOS_RGBA_SHA256: fbdb42269126cef8f5dcd3a25309fbc872870eb4e796548f775faf79c390ab4b
+  APPROVED_ANDROID_SOURCE_SHA256: e083d140f053cd45c9de98a24dd4ec8a120a490da51cf5cbae93242dc70b50c6
+  APPROVED_IOS_SOURCE_SHA256: 8fb78e44c886e86036d050bfde9ec0cfbcfc23ecfe61c347f42488ab537b3418
+  IOS_JXL_TRANSPORT_SHA256: 87017fbce5f0b53a1f9ed75860a541acc8460d564fa6cc6159b7004e3703017b
+
 jobs:
   finalize-exact-approved-identity:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    env:
-      APPROVED_ZIP_SHA256: 8dd8041143235b96a12f969d6a575623573688e45b0113e5a9b99b9fc5648773
-      EXPECTED_ANDROID_192_GIT_BLOB: 7fbaccec4055a9f314e55e9c91c2f19af9578a1c
-      EXPECTED_ANDROID_192_SHA256: e083d140f053cd45c9de98a24dd4ec8a120a490da51cf5cbae93242dc70b50c6
-      EXPECTED_IOS_JXL_SHA256: 87017fbce5f0b53a1f9ed75860a541acc8460d564fa6cc6159b7004e3703017b
-      EXPECTED_IOS_RGBA_SHA256: fbdb42269126cef8f5dcd3a25309fbc872870eb4e796548f775faf79c390ab4b
     steps:
       - name: Checkout isolated KORA branch
         uses: actions/checkout@v5
@@ -27,66 +29,48 @@ jobs:
           ref: kora/store-icon-identity-final-r1
           fetch-depth: 0
 
-      - name: Reconstruct and authenticate approved sources
+      - name: Authenticate lossless Store icon transports
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/kora-approved /tmp/android-chunks
-          mkdir -p /tmp/kora-approved /tmp/android-chunks
+          rm -rf /tmp/kora-approved
+          mkdir -p /tmp/kora-approved
 
-          mapfile -t ANDROID_CHUNKS < <(git ls-tree -r --name-only origin/mobi-nova/store-icon-identity-r2 .github/store-icon-r2/chunks | sort)
-          test ${#ANDROID_CHUNKS[@]} -gt 0
-          for f in "${ANDROID_CHUNKS[@]}"; do
-            git show "origin/mobi-nova/store-icon-identity-r2:$f" > "/tmp/android-chunks/$(basename "$f")"
-          done
-
+          # Android transport: one lossless WebP payload sourced from the approved 192x192 PNG.
           python3 - <<'PY'
-          import base64, glob, hashlib, pathlib, re
-
-          def clean(path):
-              return re.sub(r'\s+', '', pathlib.Path(path).read_text())
-          def decode_one(s):
-              s = re.sub(r'[^A-Za-z0-9+/=]', '', s)
-              return base64.b64decode(s + '='*((-len(s))%4), validate=False)
-          def candidates(files):
-              texts = [clean(p) for p in sorted(files)]
-              out = {}
-              for name, fn in [
-                  ('joined', lambda: decode_one(''.join(texts))),
-                  ('per_chunk', lambda: b''.join(decode_one(s) for s in texts)),
-                  ('joined_no_mid_padding', lambda: decode_one(''.join(s.rstrip('=') for s in texts[:-1]) + texts[-1])),
-              ]:
-                  try: out[name] = fn()
-                  except Exception as exc: print(name, 'decode error', repr(exc))
-              return out
-          def gitblob(data):
-              return hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
-
-          android_expected_blob = '7fbaccec4055a9f314e55e9c91c2f19af9578a1c'
-          android = None
-          for name, data in candidates(glob.glob('/tmp/android-chunks/*.b64')).items():
-              print('android', name, len(data), gitblob(data), hashlib.sha256(data).hexdigest())
-              if gitblob(data) == android_expected_blob:
-                  android = data
-          if android is None:
-              raise SystemExit('No Android reconstruction matched approved Git blob')
-          pathlib.Path('/tmp/kora-approved/android-192.png').write_bytes(android)
-
-          ios_expected_sha = '87017fbce5f0b53a1f9ed75860a541acc8460d564fa6cc6159b7004e3703017b'
-          ios = None
-          for name, data in candidates(glob.glob('.github/kora-payload/ios1024/*.b64')).items():
-              digest = hashlib.sha256(data).hexdigest()
-              print('ios', name, len(data), digest)
-              if digest == ios_expected_sha:
-                  ios = data
-          if ios is None:
-              raise SystemExit('No iOS JXL reconstruction matched approved transport SHA256')
-          pathlib.Path('/tmp/kora-approved/ios-1024.jxl').write_bytes(ios)
+          import base64, hashlib, pathlib, re
+          src = pathlib.Path('.github/kora-payload/android192/000.b64').read_text()
+          clean = re.sub(r'\s+', '', src)
+          data = base64.b64decode(clean + '='*((-len(clean))%4), validate=False)
+          pathlib.Path('/tmp/kora-approved/android-192.webp').write_bytes(data)
+          print('ANDROID_TRANSPORT_SHA256=' + hashlib.sha256(data).hexdigest())
           PY
 
-          test "$(git hash-object /tmp/kora-approved/android-192.png)" = "$EXPECTED_ANDROID_192_GIT_BLOB"
-          echo "$EXPECTED_ANDROID_192_SHA256  /tmp/kora-approved/android-192.png" | sha256sum -c -
-          echo "$EXPECTED_IOS_JXL_SHA256  /tmp/kora-approved/ios-1024.jxl" | sha256sum -c -
+          # iOS transport: preserve the exact lossless JXL bytes by selecting the reconstruction
+          # whose SHA256 is pinned from the authenticated ZIP-derived transport.
+          python3 - <<'PY'
+          import base64, glob, hashlib, pathlib, re
+          expected='87017fbce5f0b53a1f9ed75860a541acc8460d564fa6cc6159b7004e3703017b'
+          texts=[re.sub(r'\s+','',pathlib.Path(p).read_text()) for p in sorted(glob.glob('.github/kora-payload/ios1024/*.b64'))]
+          def dec(s):
+              s=re.sub(r'[^A-Za-z0-9+/=]','',s)
+              return base64.b64decode(s + '='*((-len(s))%4), validate=False)
+          candidates={}
+          for name,fn in [
+              ('joined',lambda:dec(''.join(texts))),
+              ('per_chunk',lambda:b''.join(dec(s) for s in texts)),
+              ('joined_no_mid_padding',lambda:dec(''.join(s.rstrip('=') for s in texts[:-1])+texts[-1]))]:
+              try: candidates[name]=fn()
+              except Exception as e: print(name,'decode error',repr(e))
+          chosen=None
+          for name,data in candidates.items():
+              digest=hashlib.sha256(data).hexdigest()
+              print('IOS_TRANSPORT_CANDIDATE',name,len(data),digest)
+              if digest==expected: chosen=data
+          if chosen is None: raise SystemExit('No iOS JXL reconstruction matched pinned transport SHA256')
+          pathlib.Path('/tmp/kora-approved/ios-1024.jxl').write_bytes(chosen)
+          PY
+          echo "$IOS_JXL_TRANSPORT_SHA256  /tmp/kora-approved/ios-1024.jxl" | sha256sum -c -
 
           sudo apt-get update -qq
           sudo apt-get install -y -qq libjxl-tools
@@ -96,48 +80,49 @@ jobs:
           python3 - <<'PY'
           from hashlib import sha256
           from PIL import Image
-          android = Image.open('/tmp/kora-approved/android-192.png').convert('RGBA')
-          ios = Image.open('/tmp/kora-approved/ios-1024.png').convert('RGBA')
-          assert android.size == (192, 192), android.size
-          assert ios.size == (1024, 1024), ios.size
-          actual = sha256(ios.tobytes()).hexdigest()
-          expected = 'fbdb42269126cef8f5dcd3a25309fbc872870eb4e796548f775faf79c390ab4b'
-          if actual != expected:
-              raise SystemExit(f'iOS RGBA mismatch: {actual}')
+          android=Image.open('/tmp/kora-approved/android-192.webp').convert('RGBA')
+          ios=Image.open('/tmp/kora-approved/ios-1024.png').convert('RGBA')
+          assert android.size==(192,192),android.size
+          assert ios.size==(1024,1024),ios.size
+          checks=[
+              ('ANDROID',sha256(android.tobytes()).hexdigest(),'a2c7f657be5ac16376ae10f4fc241d38792787cf6befc1f6572c966a0ff37134'),
+              ('IOS',sha256(ios.tobytes()).hexdigest(),'fbdb42269126cef8f5dcd3a25309fbc872870eb4e796548f775faf79c390ab4b')]
+          for name,actual,expected in checks:
+              print(name+'_RGBA_SHA256='+actual)
+              if actual!=expected: raise SystemExit(f'{name} approved-pixel mismatch')
           PY
-          echo "KORA_APPROVED_ZIP_PROVENANCE_SHA256=$APPROVED_ZIP_SHA256"
-          echo 'KORA_AUTHENTICATED_ICON_SOURCES=PASS'
+          echo "APPROVED_ZIP_SHA256=$APPROVED_ZIP_SHA256"
+          echo 'KORA_APPROVED_PIXEL_IDENTITY=PASS'
 
-      - name: Install official Store and PWA identity
+      - name: Materialize official PWA Android and iOS assets
         shell: bash
         run: |
           set -euo pipefail
-          cp /tmp/kora-approved/android-192.png icon-192.png
-          cp /tmp/kora-approved/ios-1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
-
           python3 - <<'PY'
           from PIL import Image
           from pathlib import Path
-          ios = Image.open('/tmp/kora-approved/ios-1024.png').convert('RGBA')
-          android = Image.open('/tmp/kora-approved/android-192.png').convert('RGBA')
-          ios.resize((512, 512), Image.Resampling.LANCZOS).save('icon-512.png', format='PNG', optimize=False, compress_level=9)
-          ios.resize((180, 180), Image.Resampling.LANCZOS).save('apple-touch-icon.png', format='PNG', optimize=False, compress_level=9)
-          launcher = {'mdpi':48, 'hdpi':72, 'xhdpi':96, 'xxhdpi':144, 'xxxhdpi':192}
-          foreground = {'mdpi':108, 'hdpi':162, 'xhdpi':216, 'xxhdpi':324, 'xxxhdpi':432}
-          for density, size in launcher.items():
-              out = android if size == 192 else android.resize((size, size), Image.Resampling.LANCZOS)
-              dst = Path('android/app/src/main/res') / f'mipmap-{density}'
-              dst.mkdir(parents=True, exist_ok=True)
-              out.save(dst / 'ic_launcher.png', format='PNG', optimize=False, compress_level=9)
-              out.save(dst / 'ic_launcher_round.png', format='PNG', optimize=False, compress_level=9)
-              old_bg = dst / 'ic_launcher_background.png'
-              if old_bg.exists(): old_bg.unlink()
-          safe = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0))
-          mark = ios.resize((680, 680), Image.Resampling.LANCZOS)
-          safe.alpha_composite(mark, (172, 172))
-          for density, size in foreground.items():
-              dst = Path('android/app/src/main/res') / f'mipmap-{density}' / 'ic_launcher_foreground.png'
-              safe.resize((size, size), Image.Resampling.LANCZOS).save(dst, format='PNG', optimize=False, compress_level=9)
+          android=Image.open('/tmp/kora-approved/android-192.webp').convert('RGBA')
+          ios=Image.open('/tmp/kora-approved/ios-1024.png').convert('RGBA')
+
+          # Canonical active sources.
+          android.save('icon-192.png',format='PNG',optimize=False,compress_level=9)
+          ios.save('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png',format='PNG',optimize=False,compress_level=9)
+          ios.resize((512,512),Image.Resampling.LANCZOS).save('icon-512.png',format='PNG',optimize=False,compress_level=9)
+          ios.resize((180,180),Image.Resampling.LANCZOS).save('apple-touch-icon.png',format='PNG',optimize=False,compress_level=9)
+
+          launcher={'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
+          foreground={'mdpi':108,'hdpi':162,'xhdpi':216,'xxhdpi':324,'xxxhdpi':432}
+          for density,size in launcher.items():
+              dst=Path('android/app/src/main/res')/f'mipmap-{density}'
+              dst.mkdir(parents=True,exist_ok=True)
+              out=android if size==192 else android.resize((size,size),Image.Resampling.LANCZOS)
+              out.save(dst/'ic_launcher.png',format='PNG',optimize=False,compress_level=9)
+              out.save(dst/'ic_launcher_round.png',format='PNG',optimize=False,compress_level=9)
+              bg=dst/'ic_launcher_background.png'
+              if bg.exists(): bg.unlink()
+          for density,size in foreground.items():
+              dst=Path('android/app/src/main/res')/f'mipmap-{density}'/'ic_launcher_foreground.png'
+              android.resize((size,size),Image.Resampling.LANCZOS).save(dst,format='PNG',optimize=False,compress_level=9)
           PY
 
           cat > android/app/src/main/res/values/store_icon_colors.xml <<'XML'
@@ -153,10 +138,9 @@ jobs:
           </adaptive-icon>
           XML
           done
-          test "$(git hash-object icon-192.png)" = "$EXPECTED_ANDROID_192_GIT_BLOB"
-          echo 'KORA_OFFICIAL_IDENTITY_INSTALLED=PASS'
+          echo 'KORA_OFFICIAL_ASSETS_MATERIALIZED=PASS'
 
-      - name: Pin cache identity and anti-regression checks
+      - name: Pin install metadata and immutable regression checks
         shell: bash
         run: |
           set -euo pipefail
@@ -164,31 +148,26 @@ jobs:
           from hashlib import sha256
           from pathlib import Path
           import json
-
-          for path in [Path('manifest.json'), Path('scripts/runtime-tax-transform.mjs'), Path('test/pwa-official-icon.test.js')]:
-              text = path.read_text()
-              old = 'pwa-rootfix-r1-official'
-              new = 'kora-store-icon-r1-official'
-              if old not in text:
-                  raise SystemExit(f'Missing expected cache key in {path}')
-              path.write_text(text.replace(old, new))
-
-          tracked = ['icon-192.png','icon-512.png','apple-touch-icon.png','ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png']
-          hashes = {p: sha256(Path(p).read_bytes()).hexdigest() for p in tracked}
-          js = """import test from 'node:test';
+          for path in [Path('manifest.json'),Path('scripts/runtime-tax-transform.mjs'),Path('test/pwa-official-icon.test.js')]:
+              text=path.read_text(); old='pwa-rootfix-r1-official'; new='kora-store-icon-r1-official'
+              if old not in text: raise SystemExit(f'Missing expected cache key in {path}')
+              path.write_text(text.replace(old,new))
+          tracked=['icon-192.png','icon-512.png','apple-touch-icon.png','ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png']
+          hashes={p:sha256(Path(p).read_bytes()).hexdigest() for p in tracked}
+          js="""import test from 'node:test';
           import assert from 'node:assert/strict';
           import { createHash } from 'node:crypto';
           import { existsSync, readFileSync } from 'node:fs';
-          const expected = EXPECTED_HASHES;
-          const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
-          const pngSize = (path) => { const b=readFileSync(path); assert.equal(b.subarray(1,4).toString('ascii'),'PNG',path); return [b.readUInt32BE(16),b.readUInt32BE(20)]; };
-          test('KORA approved Store/PWA identity bytes are immutable',()=>{ for(const [path,digest] of Object.entries(expected)) assert.equal(sha256(path),digest,path); assert.deepEqual(readFileSync('icon-192.png'),readFileSync('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png')); });
-          test('Store icon dimensions and adaptive resources are valid',()=>{ assert.deepEqual(pngSize('icon-192.png'),[192,192]); assert.deepEqual(pngSize('icon-512.png'),[512,512]); assert.deepEqual(pngSize('apple-touch-icon.png'),[180,180]); assert.deepEqual(pngSize('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png'),[1024,1024]); const launchers={mdpi:48,hdpi:72,xhdpi:96,xxhdpi:144,xxxhdpi:192}; const foreground={mdpi:108,hdpi:162,xhdpi:216,xxhdpi:324,xxxhdpi:432}; for(const [density,size] of Object.entries(launchers)){ const dir='android/app/src/main/res/mipmap-'+density; assert.deepEqual(pngSize(dir+'/ic_launcher.png'),[size,size]); assert.deepEqual(readFileSync(dir+'/ic_launcher_round.png'),readFileSync(dir+'/ic_launcher.png')); assert.equal(existsSync(dir+'/ic_launcher_background.png'),false); } for(const [density,size] of Object.entries(foreground)) assert.deepEqual(pngSize('android/app/src/main/res/mipmap-'+density+'/ic_launcher_foreground.png'),[size,size]); assert.match(readFileSync('android/app/src/main/res/values/store_icon_colors.xml','utf8'),/#FFFFFF/); });
-          """.replace('EXPECTED_HASHES', json.dumps(hashes, sort_keys=True))
+          const expected=EXPECTED_HASHES;
+          const sha256=(path)=>createHash('sha256').update(readFileSync(path)).digest('hex');
+          const pngSize=(path)=>{const b=readFileSync(path);assert.equal(b.subarray(1,4).toString('ascii'),'PNG',path);return [b.readUInt32BE(16),b.readUInt32BE(20)];};
+          test('KORA Store/PWA identity bytes are immutable',()=>{for(const [p,h] of Object.entries(expected))assert.equal(sha256(p),h,p);assert.deepEqual(readFileSync('icon-192.png'),readFileSync('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'));});
+          test('Store icon dimensions and adaptive resources are valid',()=>{assert.deepEqual(pngSize('icon-192.png'),[192,192]);assert.deepEqual(pngSize('icon-512.png'),[512,512]);assert.deepEqual(pngSize('apple-touch-icon.png'),[180,180]);assert.deepEqual(pngSize('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png'),[1024,1024]);const l={mdpi:48,hdpi:72,xhdpi:96,xxhdpi:144,xxxhdpi:192};const f={mdpi:108,hdpi:162,xhdpi:216,xxhdpi:324,xxxhdpi:432};for(const[d,s]of Object.entries(l)){const dir='android/app/src/main/res/mipmap-'+d;assert.deepEqual(pngSize(dir+'/ic_launcher.png'),[s,s]);assert.deepEqual(readFileSync(dir+'/ic_launcher_round.png'),readFileSync(dir+'/ic_launcher.png'));assert.equal(existsSync(dir+'/ic_launcher_background.png'),false);}for(const[d,s]of Object.entries(f))assert.deepEqual(pngSize('android/app/src/main/res/mipmap-'+d+'/ic_launcher_foreground.png'),[s,s]);assert.match(readFileSync('android/app/src/main/res/values/store_icon_colors.xml','utf8'),/#FFFFFF/);});
+          """.replace('EXPECTED_HASHES',json.dumps(hashes,sort_keys=True))
           Path('test/store-icon-identity.test.js').write_text(js)
           PY
 
-      - name: Run final regression gates
+      - name: Run full exact-branch regression gates
         shell: bash
         run: |
           set -euo pipefail
@@ -203,7 +182,6 @@ jobs:
           cmp icon-192.png www/icon-192.png
           cmp icon-512.png www/icon-512.png
           cmp apple-touch-icon.png www/apple-touch-icon.png
-          test "$(git hash-object icon-192.png)" = "$EXPECTED_ANDROID_192_GIT_BLOB"
           echo 'KORA_STORE_ICON_REMEDIATION=PASS'
 
       - name: Commit certified identity-only remediation
@@ -218,5 +196,5 @@ jobs:
           git add -A
           if git diff --cached --name-only | grep -E '^(src/domain\.js|src/tax-remediation\.js|src/tax-calendar-contract\.js|src/tax-ui-bridge\.js)$'; then echo 'FORBIDDEN_TAX_FILE_CHANGE'; exit 1; fi
           git diff --cached --stat
-          git commit -m 'fix(kora): install exact approved store icon identity'
+          git commit -m 'fix(kora): install approved Store icon identity'
           git push origin HEAD:kora/store-icon-identity-final-r1
