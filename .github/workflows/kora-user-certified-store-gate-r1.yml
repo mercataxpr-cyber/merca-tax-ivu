@@ -41,7 +41,7 @@ jobs:
           test "$(git rev-parse origin/main)" = "26bbdc4529ad7d814305ef0e22499e4ab5be75ca"
           echo "LINEAGE_AND_MAIN_ISOLATION=PASS"
 
-      - name: Verify user-certified PWA identity
+      - name: Verify user-certified PWA source identity
         shell: bash
         run: |
           set -euo pipefail
@@ -52,8 +52,7 @@ jobs:
           grep -q '/icon-512.png?v=official-preview-r2' manifest.json
           test -f sw.js
           test -f pwa-register.js
-          grep -q 'pwa-register.js' index.html
-          echo "USER_CERTIFIED_PWA_IDENTITY=PASS"
+          echo "USER_CERTIFIED_PWA_SOURCE_IDENTITY=PASS"
 
       - name: Verify Apple toolchain floor
         shell: bash
@@ -88,6 +87,12 @@ jobs:
           npm run test:tax
           npm run test:mobile-tax-parity
           npm run test:backup
+          test -f public/sw.js
+          test -f public/pwa-register.js
+          grep -q 'pwa-register.js' public/index.html
+          cmp icon-192.png public/icon-192.png
+          cmp icon-512.png public/icon-512.png
+          echo "USER_CERTIFIED_PWA_PUBLISHED_OUTPUT=PASS"
 
       - name: Build and prove mobile runtime parity
         shell: bash
