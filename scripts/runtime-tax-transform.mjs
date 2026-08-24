@@ -45,8 +45,14 @@ export function transformIndexSource(source) {
   const legacyMarker = "<script>\nconst WA='17873566336', PIN='1234';";
   const start = output.indexOf(legacyMarker);
   if (start === -1) throw new Error('Runtime tax transform could not find legacy inline application script');
-  const end = output.indexOf('</script>', start);
-  if (end === -1) throw new Error('Runtime tax transform could not find end of legacy inline application script');
+
+  // The legacy application script contains a literal </script> inside an HTML
+  // template used for report/PWA output. Using indexOf() truncated the script at
+  // that embedded marker and leaked the remaining JavaScript into the page.
+  // The application script is the final inline script in the source document,
+  // so use its final closing tag as the true boundary.
+  const end = output.lastIndexOf('</script>');
+  if (end === -1 || end <= start) throw new Error('Runtime tax transform could not find end of legacy inline application script');
   output = `${output.slice(0, start)}<script src="/script.js"></script>${output.slice(end + '</script>'.length)}`;
 
   output = replaceExactly(
