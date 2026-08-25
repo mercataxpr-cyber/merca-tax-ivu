@@ -50,14 +50,26 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Full web/domain regression gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm run gate
-          npm run test:tax
-          npm run test:mobile-tax-parity
-          npm run test:backup
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Lint sources
+        run: npm run lint
+
+      - name: Full Node test suite
+        run: npm test
+
+      - name: Secret scan
+        run: npm run secret-scan
+
+      - name: TAX focused tests
+        run: npm run test:tax
+
+      - name: Mobile TAX parity tests
+        run: npm run test:mobile-tax-parity
+
+      - name: Backup tests
+        run: npm run test:backup
 
       - name: Verify store release presentation
         shell: bash
