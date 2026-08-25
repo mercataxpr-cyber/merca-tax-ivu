@@ -62,7 +62,7 @@ For submission, use the HTTPS production URL that serves these exact files. The 
 
 `.github/workflows/kora-store-ready-r2.yml` validates:
 
-- full web/domain regression suite;
+- full web/domain regression suite with build, lint, tests and secret scan reported as separate certification steps;
 - TAX and mobile TAX parity;
 - v1 store presentation cleanup;
 - approved PWA icon identity;
