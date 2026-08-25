@@ -9,14 +9,20 @@
   if (!doc || root.__MERCATAX_STORE_RELEASE_UI_R2__) return;
   root.__MERCATAX_STORE_RELEASE_UI_R2__ = true;
 
+  function matchingNodes(selector, scope = doc) {
+    if (!scope) return [];
+    const nodes = [];
+    if (scope.nodeType === 1 && typeof scope.matches === 'function' && scope.matches(selector)) nodes.push(scope);
+    if (typeof scope.querySelectorAll === 'function') nodes.push(...scope.querySelectorAll(selector));
+    return nodes;
+  }
+
   function removeAll(selector, scope = doc) {
-    if (!scope || typeof scope.querySelectorAll !== 'function') return;
-    scope.querySelectorAll(selector).forEach((node) => node.remove());
+    matchingNodes(selector, scope).forEach((node) => node.remove());
   }
 
   function normalizeWhatsAppCopy(scope = doc) {
-    if (!scope || typeof scope.querySelectorAll !== 'function') return;
-    scope.querySelectorAll('.vxWhats').forEach((button) => {
+    matchingNodes('.vxWhats', scope).forEach((button) => {
       if (/compartir\s+por\s+whatsapp/i.test(button.textContent || '')) {
         button.textContent = '◉ Radicar por WhatsApp';
       }
