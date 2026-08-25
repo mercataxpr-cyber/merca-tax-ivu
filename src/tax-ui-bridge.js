@@ -135,7 +135,7 @@
     }
     const daysRemaining = daysBetween(currentIso, result.effectiveDate);
     let text;
-    if (daysRemaining === 0) text = `Hoy vence el IVU según la fecha efectiva certificada (${presentation.effectiveDate}).`;
+    if (daysRemaining === 0) text = `Hoy vence el IVU según la fecha efectiva certificada (${result.effectiveDate}).`;
     else if (daysRemaining > 0) text = `Faltan ${daysRemaining} días para la fecha efectiva certificada del IVU (${result.effectiveDate}).`;
     else text = `La fecha efectiva certificada del IVU fue ${result.effectiveDate}.`;
 
