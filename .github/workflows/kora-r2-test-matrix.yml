@@ -1,0 +1,54 @@
+name: KORA R2 Test Matrix
+
+on:
+  push:
+    branches:
+      - release/store-ready-r2-candidate
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-file:
+    name: ${{ matrix.file }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        file:
+          - test/backup.test.js
+          - test/build-loader.test.js
+          - test/ivu.test.js
+          - test/legal-readiness.test.js
+          - test/malformed-input.test.js
+          - test/mobile-copy-r1.test.js
+          - test/mobile-foundation.test.js
+          - test/mobile-home-card-r2.test.js
+          - test/mobile-r1-integration.test.js
+          - test/mobile-remediation.test.js
+          - test/mobile-tax-runtime-parity.test.js
+          - test/mobile-vnext-ui.test.js
+          - test/multi-business.test.js
+          - test/pwa-official-icon.test.js
+          - test/rounding.test.js
+          - test/runtime-state-compat.test.js
+          - test/runtime-tax-integration.test.js
+          - test/runtime-transform.test.js
+          - test/runtime-unresolved-sale-guard.test.js
+          - test/store-release-ui-r2.test.js
+          - test/tax-calendar-contract.test.js
+          - test/tax-remediation.test.js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Run ${{ matrix.file }}
+        run: node --test ${{ matrix.file }}
