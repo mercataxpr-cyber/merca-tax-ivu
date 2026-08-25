@@ -19,22 +19,6 @@
       if (sale.taxProfileStatus === 'TAX_PROFILE_REQUIRED') delete sale.taxProfileStatus;
       return sale;
     }
-
-    // Legacy web builds stored only a numeric rate. When that rate maps exactly to
-    // one of the certified profiles, preserve the historical sale by attaching the
-    // corresponding profile before any totals are rendered. Unknown/custom rates
-    // remain explicitly blocked instead of being guessed.
-    if (Number.isFinite(Number(sale.rate))) {
-      try {
-        const profile = tax.resolveTaxProfile(Number(sale.rate));
-        sale.taxProfile = profile.id;
-        delete sale.taxProfileStatus;
-        return sale;
-      } catch (_) {
-        // Fall through to the explicit TAX_PROFILE_REQUIRED state below.
-      }
-    }
-
     sale.taxProfileStatus = 'TAX_PROFILE_REQUIRED';
     return sale;
   }
