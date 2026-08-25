@@ -1,0 +1,182 @@
+name: KORA Store Ready R2
+
+on:
+  push:
+    branches:
+      - kora/store-ready-r2-work
+      - release/store-ready-r2-candidate
+  pull_request:
+    branches:
+      - release/store-ready-r2-candidate
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kora-store-ready-r2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify-store-ready-r2:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Record candidate identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CANDIDATE_SHA=$(git rev-parse HEAD)"
+          git status --short
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Full web/domain regression gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run gate
+          npm run test:tax
+          npm run test:mobile-tax-parity
+          npm run test:backup
+
+      - name: Verify store release presentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "src/store-release-ui-r2.js" script.js
+          test -f public/src/store-release-ui-r2.js
+          grep -q "Radicar por WhatsApp" public/src/store-release-ui-r2.js
+          grep -q "\.vxAi, \.vxNote" public/src/store-release-ui-r2.js
+          grep -q "\.vxAdLabel, \.vxAd" public/src/store-release-ui-r2.js
+          test -f public/privacy.html
+          test -f public/terms.html
+          grep -q "MercaTax IVU PR" public/privacy.html
+          grep -q "24 de agosto de 2026" public/privacy.html
+          echo "STORE_PRESENTATION_R2=PASS"
+
+      - name: Verify approved PWA icon identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object icon-192.png)" = "4eae27ff1365eb7f6e56bdc5c146c6b7999d2778"
+          test "$(git hash-object icon-512.png)" = "1100d87dcbbb810813ec0066c3d3e9e8b6cea0a6"
+          cmp icon-192.png public/icon-192.png
+          cmp icon-512.png public/icon-512.png
+          test -f public/sw.js
+          test -f public/pwa-register.js
+          echo "PWA_IDENTITY_R2=PASS"
+
+      - name: Build and prove native runtime parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run mobile:build
+          npm run mobile:gate
+          npx cap sync
+          npm run mobile:tax-parity
+          test -f www/privacy.html
+          test -f www/terms.html
+          test -f www/src/store-release-ui-r2.js
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
+          echo "NATIVE_RUNTIME_R2=PASS"
+
+      - name: Verify native icon source transfer
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "7fbaccec4055a9f314e55e9c91c2f19af9578a1c"
+          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "408584781de00f1ce6d8fff7729b7ef3b7a1fedf"
+          echo "NATIVE_ICON_TRANSFER_R2=PASS"
+
+      - name: Build Android validation artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew clean assembleDebug bundleRelease --no-daemon
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          test -f app/build/outputs/bundle/release/app-release.aab
+          echo "ANDROID_R2=PASS"
+
+      - name: Verify Android packaged runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          unzip -p "$APK" assets/public/index.html > /tmp/apk-index.html
+          unzip -p "$AAB" base/assets/public/index.html > /tmp/aab-index.html
+          cmp www/index.html /tmp/apk-index.html
+          cmp www/index.html /tmp/aab-index.html
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/apk-index.html
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/aab-index.html
+          echo "ANDROID_PACKAGE_PARITY_R2=PASS"
+
+      - name: Verify Apple toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Build iOS Release simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/mercatax-r2-sim
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Release -derivedDataPath /tmp/mercatax-r2-sim CODE_SIGNING_ALLOWED=NO build
+          test -d /tmp/mercatax-r2-sim/Build/Products/Release-iphonesimulator/App.app
+          echo "IOS_SIMULATOR_R2=PASS"
+
+      - name: Archive unsigned iOS Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/MercaTaxIVUPR-R2.xcarchive
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/MercaTaxIVUPR-R2.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO archive
+          APP="/tmp/MercaTaxIVUPR-R2.xcarchive/Products/Applications/App.app"
+          test -d "$APP"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "com.mercatax.ivupr"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" = "1.0.0"
+          test -f "$APP/PrivacyInfo.xcprivacy"
+          cmp www/index.html "$APP/public/index.html"
+          echo "IOS_ARCHIVE_R2=PASS"
+
+      - name: Verify clean candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain)"
+          echo "KORA_STORE_READY_R2=PASS"
+
+      - name: Upload Android validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-store-ready-r2-${{ github.sha }}
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
