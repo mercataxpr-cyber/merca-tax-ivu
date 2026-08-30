@@ -161,8 +161,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "7fbaccec4055a9f314e55e9c91c2f19af9578a1c"
-          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "408584781de00f1ce6d8fff7729b7ef3b7a1fedf"
+          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "570a0f478785916551cc30f8dd99a8e559934e91"
+          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "00bdf9562fbc4bc7d578590751a456c0a419cc31"
           echo "NATIVE_ICON_TRANSFER_R2=PASS"
 
       - name: Build and prove native runtime parity
