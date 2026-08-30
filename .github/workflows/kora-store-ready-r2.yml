@@ -56,6 +56,15 @@ jobs:
           echo "CANDIDATE_SHA=$(git rev-parse HEAD)"
           git status --short
 
+      - name: Verify clean candidate before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain)"
+          echo "CANDIDATE_CLEAN_PREBUILD=PASS"
+
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
@@ -218,11 +227,15 @@ jobs:
           cmp www/index.html "$APP/public/index.html"
           echo "IOS_ARCHIVE_R2=PASS"
 
-      - name: Verify clean candidate
+      - name: Verify certified candidate identity
         shell: bash
         run: |
           set -euo pipefail
-          git diff --exit-code
-          git diff --cached --exit-code
-          test -z "$(git status --porcelain)"
+          ARTIFACT_SHA="$(tr -d '\r\n' < "$RUNNER_TEMP/ARTIFACT_SHA.txt")"
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
+          test "$ARTIFACT_SHA" = "$CHECKOUT_SHA"
+          test "$CHECKOUT_SHA" = "$GITHUB_SHA"
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -f android/app/build/outputs/bundle/release/app-release.aab
+          cmp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
           echo "KORA_STORE_READY_R2=PASS"
