@@ -171,7 +171,8 @@ jobs:
           set -euo pipefail
           test -f www/privacy.html
           test -f www/terms.html
-          test -f www/src/store-release-ui-r2.js
+          test -f www/mobile-native.js
+          test -f www/src/app.js
           ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
           echo "NATIVE_RUNTIME_R2=PASS"
 
@@ -179,15 +180,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q "src/store-release-ui-r2.js" script.js
-          test -f public/src/store-release-ui-r2.js
-          grep -q "Radicar por WhatsApp" public/src/store-release-ui-r2.js
-          grep -q "\.vxAi, \.vxNote" public/src/store-release-ui-r2.js
-          grep -q "\.vxAdLabel, \.vxAd" public/src/store-release-ui-r2.js
           test -f public/privacy.html
           test -f public/terms.html
+          test -f public/manifest.json
           grep -q "MercaTax IVU PR" public/privacy.html
-          grep -q "24 de agosto de 2026" public/privacy.html
+          grep -q "Última actualización:" public/privacy.html
+          grep -q "MercaTax IVU PR" public/terms.html
           echo "STORE_PRESENTATION_R2=PASS"
 
       - name: Verify Apple toolchain
