@@ -153,9 +153,12 @@ async function loadServedRuntime(base) {
     '/src/tax-remediation.js',
     '/src/tax-calendar-contract.js',
     '/src/tax-ui-bridge.js',
+    '/src/runtime-state-compat.js',
     '/src/app.js',
+    '/src/runtime-unresolved-sale-guard.js',
     '/src/mobile-r1-ui.js',
     '/src/mobile-vnext-ui.js',
+    '/src/mobile-copy-r1.js',
   ]);
 
   const browser = fakeBrowser();
@@ -348,7 +351,7 @@ test('served runtime uses certified effectiveDate for period, weekend, nonWorkin
 
 test('complete served loader preserves certified April 2026 reminder after mobile UI', async () => withServer(async (base) => {
   const { context, element, notifications, paths } = await loadServedRuntime(base);
-  assert.equal(paths.at(-1), '/src/mobile-vnext-ui.js');
+  assert.equal(paths.at(-1), '/src/mobile-copy-r1.js');
 
   element('date').value = '2026-04-10';
   element('amount').value = '111.50';
