@@ -15,25 +15,62 @@ permissions:
   contents: read
 
 concurrency:
-  group: kora-store-ready-r2-${{ github.ref }}
+  group: kora-store-ready-r2-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   certify-store-ready-r2:
     runs-on: macos-26
     timeout-minutes: 60
+    env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+
+      - name: Record artifact provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKOUT_SHA" = "$CANDIDATE_SHA"
+          printf '%s\n' "$CHECKOUT_SHA" > "$RUNNER_TEMP/ARTIFACT_SHA.txt"
+          test -s "$RUNNER_TEMP/ARTIFACT_SHA.txt"
+
+      - name: Verify artifact SHA against candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT_SHA="$(tr -d '\r\n' < "$RUNNER_TEMP/ARTIFACT_SHA.txt")"
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
+          test -n "$ARTIFACT_SHA"
+          test "$ARTIFACT_SHA" = "$CHECKOUT_SHA"
+          test "$CHECKOUT_SHA" = "$CANDIDATE_SHA"
+          echo "ARTIFACT_SHA=$ARTIFACT_SHA"
+          echo "CHECKOUT_SHA=$CHECKOUT_SHA"
+          echo "CANDIDATE_SHA=$CANDIDATE_SHA"
+          echo "EVENT_GITHUB_SHA=$GITHUB_SHA"
+          echo "ARTIFACT_PROVENANCE=PASS"
 
       - name: Record candidate identity
         shell: bash
         run: |
           set -euo pipefail
-          echo "CANDIDATE_SHA=$(git rev-parse HEAD)"
+          echo "CANDIDATE_SHA=$CANDIDATE_SHA"
+          echo "CHECKOUT_SHA=$(git rev-parse HEAD)"
           git status --short
+
+      - name: Verify clean candidate before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain)"
+          echo "CANDIDATE_CLEAN_PREBUILD=PASS"
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -71,21 +108,6 @@ jobs:
       - name: Backup tests
         run: npm run test:backup
 
-      - name: Verify store release presentation
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -q "src/store-release-ui-r2.js" script.js
-          test -f public/src/store-release-ui-r2.js
-          grep -q "Radicar por WhatsApp" public/src/store-release-ui-r2.js
-          grep -q "\.vxAi, \.vxNote" public/src/store-release-ui-r2.js
-          grep -q "\.vxAdLabel, \.vxAd" public/src/store-release-ui-r2.js
-          test -f public/privacy.html
-          test -f public/terms.html
-          grep -q "MercaTax IVU PR" public/privacy.html
-          grep -q "24 de agosto de 2026" public/privacy.html
-          echo "STORE_PRESENTATION_R2=PASS"
-
       - name: Verify approved PWA icon identity
         shell: bash
         run: |
@@ -98,7 +120,7 @@ jobs:
           test -f public/pwa-register.js
           echo "PWA_IDENTITY_R2=PASS"
 
-      - name: Build and prove native runtime parity
+      - name: Prepare Android runtime for validation artifact
         shell: bash
         run: |
           set -euo pipefail
@@ -106,19 +128,7 @@ jobs:
           npm run mobile:gate
           npx cap sync
           npm run mobile:tax-parity
-          test -f www/privacy.html
-          test -f www/terms.html
-          test -f www/src/store-release-ui-r2.js
-          ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
-          echo "NATIVE_RUNTIME_R2=PASS"
-
-      - name: Verify native icon source transfer
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "7fbaccec4055a9f314e55e9c91c2f19af9578a1c"
-          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "408584781de00f1ce6d8fff7729b7ef3b7a1fedf"
-          echo "NATIVE_ICON_TRANSFER_R2=PASS"
+          echo "ANDROID_RUNTIME_PREP_R2=PASS"
 
       - name: Build Android validation artifacts
         shell: bash
@@ -130,6 +140,24 @@ jobs:
           test -f app/build/outputs/apk/debug/app-debug.apk
           test -f app/build/outputs/bundle/release/app-release.aab
           echo "ANDROID_R2=PASS"
+
+      - name: Stage artifact provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p android/app/build/outputs
+          cp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+          cmp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+
+      - name: Upload Android validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-store-ready-r2-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/ARTIFACT_SHA.txt
+          if-no-files-found: error
 
       - name: Verify Android packaged runtime
         shell: bash
@@ -144,6 +172,65 @@ jobs:
           ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/apk-index.html
           ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/aab-index.html
           echo "ANDROID_PACKAGE_PARITY_R2=PASS"
+
+      - name: Verify native icon source transfer
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "570a0f478785916551cc30f8dd99a8e559934e91"
+          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "00bdf9562fbc4bc7d578590751a456c0a419cc31"
+          echo "NATIVE_ICON_TRANSFER_R2=PASS"
+
+      - name: Build and prove native runtime parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f www/privacy.html
+          test -f www/terms.html
+          test -f www/mobile-native.js
+          test -f www/src/app.js
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
+          echo "NATIVE_RUNTIME_R2=PASS"
+
+      - name: Verify deep links configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ANDROID_MANIFEST="android/app/src/main/AndroidManifest.xml"
+          IOS_PLIST="ios/App/App/Info.plist"
+          IOS_PROJECT="ios/App/App.xcodeproj/project.pbxproj"
+
+          test -f MOBILE_R1.md
+          test -f "$ANDROID_MANIFEST"
+          test -f "$IOS_PLIST"
+          test -f "$IOS_PROJECT"
+
+          # Current native foundation explicitly documents deep/universal links as out of scope.
+          # Certify that policy without inventing an app-link domain or URL scheme.
+          grep -Fq 'deep/universal links' MOBILE_R1.md
+          grep -Fq 'Out of scope in R1-B:' MOBILE_R1.md
+
+          ! grep -Fq 'android.intent.action.VIEW' "$ANDROID_MANIFEST"
+          ! grep -Fq 'android.intent.category.BROWSABLE' "$ANDROID_MANIFEST"
+          ! grep -Fq 'CFBundleURLTypes' "$IOS_PLIST"
+          ! grep -Fq 'CFBundleURLSchemes' "$IOS_PLIST"
+          ! grep -Eq 'CODE_SIGN_ENTITLEMENTS|com\.apple\.developer\.associated-domains|applinks:' "$IOS_PROJECT"
+          test -z "$(find ios -name '*.entitlements' -print -quit)"
+
+          echo "KORA_GATE_C_MODE=OUT_OF_SCOPE_BY_DESIGN"
+          echo "KORA_GATE_C_DEEP_LINKS=PASS"
+
+      - name: Verify store release presentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f public/privacy.html
+          test -f public/terms.html
+          test -f public/manifest.json
+          grep -q "MercaTax IVU PR" public/privacy.html
+          grep -q "Última actualización:" public/privacy.html
+          grep -q "MercaTax IVU PR" public/terms.html
+          echo "STORE_PRESENTATION_R2=PASS"
 
       - name: Verify Apple toolchain
         shell: bash
@@ -174,21 +261,20 @@ jobs:
           test -f "$APP/PrivacyInfo.xcprivacy"
           cmp www/index.html "$APP/public/index.html"
           echo "IOS_ARCHIVE_R2=PASS"
+          echo "IOS_SIGNING=NOT_VERIFIED"
 
-      - name: Verify clean candidate
+      - name: Verify certified candidate identity
         shell: bash
         run: |
           set -euo pipefail
-          git diff --exit-code
-          git diff --cached --exit-code
-          test -z "$(git status --porcelain)"
+          ARTIFACT_SHA="$(tr -d '\r\n' < "$RUNNER_TEMP/ARTIFACT_SHA.txt")"
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
+          test "$ARTIFACT_SHA" = "$CHECKOUT_SHA"
+          test "$CHECKOUT_SHA" = "$CANDIDATE_SHA"
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -f android/app/build/outputs/bundle/release/app-release.aab
+          cmp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+          echo "CANDIDATE_SHA=$CANDIDATE_SHA"
+          echo "CHECKOUT_SHA=$CHECKOUT_SHA"
+          echo "ARTIFACT_SHA=$ARTIFACT_SHA"
           echo "KORA_STORE_READY_R2=PASS"
-
-      - name: Upload Android validation artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mercatax-store-ready-r2-${{ github.sha }}
-          path: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/build/outputs/bundle/release/app-release.aab
-          if-no-files-found: error

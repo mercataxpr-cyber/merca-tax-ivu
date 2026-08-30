@@ -1,0 +1,433 @@
+name: KORA Store Distribution Signing
+
+on:
+  push:
+    branches:
+      - kora/fix-artifact-sha-r1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kora-store-distribution-signing-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  certify-distribution-signing:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      CANDIDATE_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Record candidate provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
+          test "$CHECKOUT_SHA" = "$CANDIDATE_SHA"
+          printf '%s\n' "$CHECKOUT_SHA" > "$RUNNER_TEMP/ARTIFACT_SHA.txt"
+          test -s "$RUNNER_TEMP/ARTIFACT_SHA.txt"
+          echo "ARTIFACT_PROVENANCE=PASS"
+
+      - name: Verify distribution signing credentials
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in \
+            ANDROID_KEYSTORE_BASE64 \
+            ANDROID_KEYSTORE_PASSWORD \
+            ANDROID_KEY_ALIAS \
+            ANDROID_KEY_PASSWORD \
+            APPLE_CERTIFICATE_P12_BASE64 \
+            APPLE_CERTIFICATE_PASSWORD \
+            APPLE_PROVISIONING_PROFILE_BASE64 \
+            APPLE_TEAM_ID
+          do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing GitHub Actions secret: $name"
+              missing=1
+            fi
+          done
+          test "$missing" -eq 0
+          echo "DISTRIBUTION_CREDENTIALS=PASS"
+
+      - name: Verify clean candidate before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain)"
+          echo "CANDIDATE_CLEAN_PREBUILD=PASS"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Lint sources
+        run: npm run lint
+
+      - name: Full Node test suite
+        run: npm test
+
+      - name: Secret scan
+        run: npm run secret-scan
+
+      - name: TAX focused tests
+        run: npm run test:tax
+
+      - name: Mobile TAX parity tests
+        run: npm run test:mobile-tax-parity
+
+      - name: Backup tests
+        run: npm run test:backup
+
+      - name: Verify approved PWA icon identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object icon-192.png)" = "4eae27ff1365eb7f6e56bdc5c146c6b7999d2778"
+          test "$(git hash-object icon-512.png)" = "1100d87dcbbb810813ec0066c3d3e9e8b6cea0a6"
+          cmp icon-192.png public/icon-192.png
+          cmp icon-512.png public/icon-512.png
+          test -f public/sw.js
+          test -f public/pwa-register.js
+          echo "PWA_IDENTITY_R2=PASS"
+
+      - name: Prepare Android runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run mobile:build
+          npm run mobile:gate
+          npx cap sync
+          npm run mobile:tax-parity
+          echo "ANDROID_RUNTIME_PREP_R2=PASS"
+
+      - name: Build and verify signed Android release
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/mercatax-upload.jks"
+          python3 - <<'PY'
+          import base64, os, pathlib
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'mercatax-upload.jks').write_bytes(
+              base64.b64decode(os.environ['ANDROID_KEYSTORE_BASE64'])
+          )
+          PY
+          test -s "$KEYSTORE"
+          keytool -list \
+            -keystore "$KEYSTORE" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" >/dev/null
+
+          cd android
+          chmod +x gradlew
+          ./gradlew clean assembleDebug assembleRelease bundleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file="$KEYSTORE" \
+            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+
+          APK_DEBUG="app/build/outputs/apk/debug/app-debug.apk"
+          APK_RELEASE="app/build/outputs/apk/release/app-release.apk"
+          AAB="app/build/outputs/bundle/release/app-release.aab"
+          test -f "$APK_DEBUG"
+          test -f "$APK_RELEASE"
+          test -f "$AAB"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK_RELEASE"
+          unzip -l "$AAB" | grep -Eq 'META-INF/[^/]+\.(RSA|DSA|EC)$'
+          jarsigner -verify "$AAB"
+          echo "ANDROID_RELEASE_SIGNING=PASS"
+
+      - name: Stage and verify Android provenance and runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p android/app/build/outputs
+          cp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+          cmp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          unzip -p "$APK" assets/public/index.html > /tmp/apk-index.html
+          unzip -p "$AAB" base/assets/public/index.html > /tmp/aab-index.html
+          cmp www/index.html /tmp/apk-index.html
+          cmp www/index.html /tmp/aab-index.html
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/apk-index.html
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/aab-index.html
+          echo "ANDROID_PACKAGE_PARITY_R2=PASS"
+
+      - name: Verify native identity and Gate C
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "570a0f478785916551cc30f8dd99a8e559934e91"
+          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "00bdf9562fbc4bc7d578590751a456c0a419cc31"
+          test -f www/privacy.html
+          test -f www/terms.html
+          test -f www/mobile-native.js
+          test -f www/src/app.js
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
+
+          ANDROID_MANIFEST="android/app/src/main/AndroidManifest.xml"
+          IOS_PLIST="ios/App/App/Info.plist"
+          IOS_PROJECT="ios/App/App.xcodeproj/project.pbxproj"
+          grep -Fq 'deep/universal links' MOBILE_R1.md
+          grep -Fq 'Out of scope in R1-B:' MOBILE_R1.md
+          ! grep -Fq 'android.intent.action.VIEW' "$ANDROID_MANIFEST"
+          ! grep -Fq 'android.intent.category.BROWSABLE' "$ANDROID_MANIFEST"
+          ! grep -Fq 'CFBundleURLTypes' "$IOS_PLIST"
+          ! grep -Fq 'CFBundleURLSchemes' "$IOS_PLIST"
+          ! grep -Eq 'CODE_SIGN_ENTITLEMENTS|com\.apple\.developer\.associated-domains|applinks:' "$IOS_PROJECT"
+          test -z "$(find ios -name '*.entitlements' -print -quit)"
+          echo "KORA_GATE_C_MODE=OUT_OF_SCOPE_BY_DESIGN"
+          echo "KORA_GATE_C_DEEP_LINKS=PASS"
+
+      - name: Verify store release presentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f public/privacy.html
+          test -f public/terms.html
+          test -f public/manifest.json
+          grep -q "MercaTax IVU PR" public/privacy.html
+          grep -q "Última actualización:" public/privacy.html
+          grep -q "MercaTax IVU PR" public/terms.html
+          echo "STORE_PRESENTATION_R2=PASS"
+
+      - name: Verify Apple toolchain and simulator build
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          rm -rf /tmp/mercatax-r2-sim
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -derivedDataPath /tmp/mercatax-r2-sim \
+            CODE_SIGNING_ALLOWED=NO build
+          test -d /tmp/mercatax-r2-sim/Build/Products/Release-iphonesimulator/App.app
+          echo "IOS_SIMULATOR_R2=PASS"
+
+      - name: Install Apple distribution signing material
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          CERT="$RUNNER_TEMP/apple-distribution.p12"
+          PROFILE="$RUNNER_TEMP/appstore.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
+          KEYCHAIN="$RUNNER_TEMP/kora-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+
+          python3 - <<'PY'
+          import base64, os, pathlib
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          root.joinpath('apple-distribution.p12').write_bytes(
+              base64.b64decode(os.environ['APPLE_CERTIFICATE_P12_BASE64'])
+          )
+          root.joinpath('appstore.mobileprovision').write_bytes(
+              base64.b64decode(os.environ['APPLE_PROVISIONING_PROFILE_BASE64'])
+          )
+          PY
+          test -s "$CERT"
+          test -s "$PROFILE"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          security import "$CERT" \
+            -k "$KEYCHAIN" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN"
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep -F 'Apple Distribution'
+
+          security cms -D -i "$PROFILE" > "$PROFILE_PLIST"
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")"
+          PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")"
+          PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PROFILE_PLIST")"
+          PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")"
+          test "$PROFILE_TEAM" = "$APPLE_TEAM_ID"
+          test "$PROFILE_APP_ID" = "$APPLE_TEAM_ID.com.mercatax.ivupr"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "APPLE_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          echo "APPLE_DISTRIBUTION_MATERIAL=PASS"
+
+      - name: Archive and export signed iOS Release
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          ARCHIVE="$RUNNER_TEMP/MercaTaxIVUPR-Store.xcarchive"
+          EXPORT_DIR="$RUNNER_TEMP/mercatax-ios-export"
+          EXPORT_OPTIONS="$RUNNER_TEMP/ExportOptions.plist"
+          rm -rf "$ARCHIVE" "$EXPORT_DIR"
+
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            archive
+
+          APP="$ARCHIVE/Products/Applications/App.app"
+          test -d "$APP"
+          test -d "$APP/_CodeSignature"
+          test -f "$APP/embedded.mobileprovision"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "com.mercatax.ivupr"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" = "1.0.0"
+          test -f "$APP/PrivacyInfo.xcprivacy"
+          cmp www/index.html "$APP/public/index.html"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+          cat > "$EXPORT_OPTIONS" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.mercatax.ivupr</key>
+              <string>${PROFILE_NAME}</string>
+            </dict>
+            <key>destination</key>
+            <string>export</string>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$ARCHIVE" \
+            -exportPath "$EXPORT_DIR" \
+            -exportOptionsPlist "$EXPORT_OPTIONS"
+
+          IPA="$(find "$EXPORT_DIR" -maxdepth 1 -name '*.ipa' -print -quit)"
+          test -n "$IPA"
+          test -f "$IPA"
+          rm -rf "$RUNNER_TEMP/ipa-expanded"
+          mkdir -p "$RUNNER_TEMP/ipa-expanded"
+          ditto -x -k "$IPA" "$RUNNER_TEMP/ipa-expanded"
+          SIGNED_APP="$(find "$RUNNER_TEMP/ipa-expanded/Payload" -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$SIGNED_APP"
+          codesign --verify --deep --strict --verbose=2 "$SIGNED_APP"
+
+          mkdir -p ios/App/build/outputs
+          cp "$IPA" ios/App/build/outputs/MercaTaxIVUPR.ipa
+          echo "IOS_ARCHIVE_R2=PASS"
+          echo "IOS_SIGNING=PASS"
+
+      - name: Verify certified distribution candidate identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT_SHA="$(tr -d '\r\n' < "$RUNNER_TEMP/ARTIFACT_SHA.txt")"
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
+          test "$ARTIFACT_SHA" = "$CHECKOUT_SHA"
+          test "$CHECKOUT_SHA" = "$CANDIDATE_SHA"
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -f android/app/build/outputs/apk/release/app-release.apk
+          test -f android/app/build/outputs/bundle/release/app-release.aab
+          test -f android/app/build/outputs/ARTIFACT_SHA.txt
+          test -f ios/App/build/outputs/MercaTaxIVUPR.ipa
+          cmp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+
+          cat > android/app/build/outputs/SIGNING_EVIDENCE.txt <<EOF
+          CANDIDATE_SHA=$CANDIDATE_SHA
+          CHECKOUT_SHA=$CHECKOUT_SHA
+          ARTIFACT_SHA=$ARTIFACT_SHA
+          ANDROID_RELEASE_SIGNING=PASS
+          IOS_SIGNING=PASS
+          IOS_PROFILE_UUID=$PROFILE_UUID
+          EOF
+
+          echo "CANDIDATE_SHA=$CANDIDATE_SHA"
+          echo "CHECKOUT_SHA=$CHECKOUT_SHA"
+          echo "ARTIFACT_SHA=$ARTIFACT_SHA"
+          echo "ANDROID_RELEASE_SIGNING=PASS"
+          echo "IOS_SIGNING=PASS"
+          echo "KORA_STORE_DISTRIBUTION_READY=PASS"
+
+      - name: Upload single signed store candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-store-signed-${{ github.sha }}
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/ARTIFACT_SHA.txt
+            android/app/build/outputs/SIGNING_EVIDENCE.txt
+            ios/App/build/outputs/MercaTaxIVUPR.ipa
+          if-no-files-found: error

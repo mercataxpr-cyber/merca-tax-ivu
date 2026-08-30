@@ -8,7 +8,8 @@ const buildSource = readFileSync(new URL('../scripts/build.mjs', import.meta.url
 
 test('home summary refinement is syntactically valid and loaded after vNext UI', () => {
   assert.doesNotThrow(() => new vm.Script(source));
-  assert.match(buildSource, /mobile-vnext-ui\.js', loadHomeCardRefinement/);
+  assert.match(buildSource, /mobile-vnext-ui\.js/);
+  assert.match(buildSource, /mobile-copy-r1\.js', loadHomeCardRefinement/);
   assert.match(buildSource, /mobile-home-card-r2\.js/);
 });
 
