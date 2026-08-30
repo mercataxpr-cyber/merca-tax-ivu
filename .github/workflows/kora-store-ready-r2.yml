@@ -28,6 +28,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Record artifact provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > "$RUNNER_TEMP/ARTIFACT_SHA.txt"
+          test -s "$RUNNER_TEMP/ARTIFACT_SHA.txt"
+
+      - name: Verify artifact SHA against main
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT_SHA="$(tr -d '\r\n' < "$RUNNER_TEMP/ARTIFACT_SHA.txt")"
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
+          test -n "$ARTIFACT_SHA"
+          test "$ARTIFACT_SHA" = "$CHECKOUT_SHA"
+          test "$CHECKOUT_SHA" = "$GITHUB_SHA"
+          echo "ARTIFACT_SHA=$ARTIFACT_SHA"
+          echo "CHECKOUT_SHA=$CHECKOUT_SHA"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "ARTIFACT_PROVENANCE=PASS"
+
       - name: Record candidate identity
         shell: bash
         run: |
@@ -184,6 +205,14 @@ jobs:
           test -z "$(git status --porcelain)"
           echo "KORA_STORE_READY_R2=PASS"
 
+      - name: Stage artifact provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p android/app/build/outputs
+          cp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+          cmp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+
       - name: Upload Android validation artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -191,4 +220,5 @@ jobs:
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/ARTIFACT_SHA.txt
           if-no-files-found: error
