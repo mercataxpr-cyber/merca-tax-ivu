@@ -92,21 +92,6 @@ jobs:
       - name: Backup tests
         run: npm run test:backup
 
-      - name: Verify store release presentation
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -q "src/store-release-ui-r2.js" script.js
-          test -f public/src/store-release-ui-r2.js
-          grep -q "Radicar por WhatsApp" public/src/store-release-ui-r2.js
-          grep -q "\.vxAi, \.vxNote" public/src/store-release-ui-r2.js
-          grep -q "\.vxAdLabel, \.vxAd" public/src/store-release-ui-r2.js
-          test -f public/privacy.html
-          test -f public/terms.html
-          grep -q "MercaTax IVU PR" public/privacy.html
-          grep -q "24 de agosto de 2026" public/privacy.html
-          echo "STORE_PRESENTATION_R2=PASS"
-
       - name: Verify approved PWA icon identity
         shell: bash
         run: |
@@ -152,6 +137,24 @@ jobs:
           test -f app/build/outputs/bundle/release/app-release.aab
           echo "ANDROID_R2=PASS"
 
+      - name: Stage artifact provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p android/app/build/outputs
+          cp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+          cmp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
+
+      - name: Upload Android validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mercatax-store-ready-r2-${{ github.sha }}
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/ARTIFACT_SHA.txt
+          if-no-files-found: error
+
       - name: Verify Android packaged runtime
         shell: bash
         run: |
@@ -165,6 +168,21 @@ jobs:
           ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/apk-index.html
           ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/aab-index.html
           echo "ANDROID_PACKAGE_PARITY_R2=PASS"
+
+      - name: Verify store release presentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "src/store-release-ui-r2.js" script.js
+          test -f public/src/store-release-ui-r2.js
+          grep -q "Radicar por WhatsApp" public/src/store-release-ui-r2.js
+          grep -q "\.vxAi, \.vxNote" public/src/store-release-ui-r2.js
+          grep -q "\.vxAdLabel, \.vxAd" public/src/store-release-ui-r2.js
+          test -f public/privacy.html
+          test -f public/terms.html
+          grep -q "MercaTax IVU PR" public/privacy.html
+          grep -q "24 de agosto de 2026" public/privacy.html
+          echo "STORE_PRESENTATION_R2=PASS"
 
       - name: Verify Apple toolchain
         shell: bash
@@ -204,21 +222,3 @@ jobs:
           git diff --cached --exit-code
           test -z "$(git status --porcelain)"
           echo "KORA_STORE_READY_R2=PASS"
-
-      - name: Stage artifact provenance
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p android/app/build/outputs
-          cp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
-          cmp "$RUNNER_TEMP/ARTIFACT_SHA.txt" android/app/build/outputs/ARTIFACT_SHA.txt
-
-      - name: Upload Android validation artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mercatax-store-ready-r2-${{ github.sha }}
-          path: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/build/outputs/bundle/release/app-release.aab
-            android/app/build/outputs/ARTIFACT_SHA.txt
-          if-no-files-found: error
