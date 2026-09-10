@@ -66,12 +66,15 @@
   const baseReportHtml = window.reportHtml;
   window.reportHtml = function reportHtmlMobile(sales) {
     let html = baseReportHtml(sales);
-    html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">');
+    let officialLogoUrl = 'logo.png';
+    try { officialLogoUrl = new URL('logo.png', window.location.href).href; } catch (error) {}
+
+    html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">');
     html = html.replace('.page{width:8.5in;min-height', '.page{width:8.5in;max-width:100%;min-height');
     html = html.replace('.logo{width:220px;max-height', '.logo{width:220px;max-width:42%;max-height');
-    html = html.replace('src="assets/logo.png"', 'src="logo.png" alt="MercaTax IVU PR"');
+    html = html.replace(/src="(?:assets\/)?logo\.png"(?:\s+alt="[^"]*")?/, 'src="' + officialLogoUrl + '" alt="MercaTax IVU PR"');
     html = html.replace('.actions{display:flex;gap:10px;justify-content:center;margin:20px auto;width:8.5in}', '.actions{display:flex;gap:10px;justify-content:center;margin:20px auto;max-width:8.5in}');
-    html = html.replace('@media print{', '@media(max-width:700px){.page{width:auto;min-height:auto;margin:0;padding:20px}.head,.foot{gap:16px}.summary{grid-template-columns:1fr}.actions{padding:0 14px}}@media print{');
+    html = html.replace('@media print{', '@media(max-width:700px){html,body{width:100%;max-width:100%;overflow-x:hidden}.page{width:calc(100% - 20px);max-width:100%;min-height:auto;margin:10px auto;padding:16px;box-sizing:border-box;overflow:hidden}.head,.foot{gap:12px;align-items:flex-start;flex-wrap:wrap}.logo{width:min(180px,48%);max-width:48%;height:auto}.summary{grid-template-columns:1fr}.actions{width:100%;max-width:100%;padding:0 10px;box-sizing:border-box;flex-wrap:wrap}.actions>*{max-width:100%}table{width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse}th,td{white-space:normal;overflow-wrap:anywhere;word-break:break-word;font-size:11px;padding:7px 5px}.page *{max-width:100%;box-sizing:border-box}}@media print{');
     return html;
   };
 
@@ -185,12 +188,38 @@
     }
   };
 
+  function installModalCloseControl() {
+    const dialog = document.querySelector('#modal .dialog');
+    if (!dialog || dialog.querySelector('[data-modal-close]')) return;
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'modalCloseButton';
+    closeButton.dataset.modalClose = 'true';
+    closeButton.setAttribute('aria-label', 'Cerrar');
+    closeButton.setAttribute('title', 'Cerrar');
+    closeButton.textContent = '×';
+    closeButton.addEventListener('click', () => {
+      if (typeof window.closeDialog === 'function') window.closeDialog();
+    });
+    dialog.insertBefore(closeButton, dialog.firstChild);
+  }
+
+  function installModalCloseStyles() {
+    if (document.querySelector('style[data-modal-close-style]')) return;
+    const style = document.createElement('style');
+    style.dataset.modalCloseStyle = 'true';
+    style.textContent = '.dialog{position:relative}.modalCloseButton{position:absolute;top:10px;right:10px;width:44px;height:44px;min-width:44px;min-height:44px;border:0;border-radius:50%;background:rgba(17,20,24,.07);color:#111418;font-size:30px;line-height:1;display:grid;place-items:center;cursor:pointer;z-index:2}.modalCloseButton:active{transform:scale(.96)}.dialog h2{padding-right:48px}';
+    document.head.appendChild(style);
+  }
+
   window.installMobileHardening = function installMobileHardening() {
     if (!document.querySelector('link[data-mobile-r1]')) {
       const link = document.createElement('link');
       link.rel = 'stylesheet'; link.href = 'mobile-r1.css'; link.dataset.mobileR1 = 'true';
       document.head.appendChild(link);
     }
+    installModalCloseStyles();
+    installModalCloseControl();
     const menu = el('menu');
     if (menu && !el('privacyMenuBtn')) {
       const button = document.createElement('button');
