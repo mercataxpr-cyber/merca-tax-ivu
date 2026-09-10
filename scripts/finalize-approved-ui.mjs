@@ -14,19 +14,29 @@ if (!cssMatch) throw new Error('approved home CSS block not found');
 
 let index = readFileSync(indexPath, 'utf8');
 const styleTag = `<style id="mercatax-approved-home-static">${cssMatch[1]}</style>`;
-if (!index.includes('mercatax-approved-home-static')) {
-  index = index.replace('</head>', `${styleTag}</head>`);
-}
+if (!index.includes('mercatax-approved-home-static')) index = index.replace('</head>', `${styleTag}</head>`);
 writeFileSync(indexPath, index);
 
 let vnext = readFileSync(vnextBuiltPath, 'utf8');
 vnext = vnext.replaceAll('Compartir por WhatsApp', 'Radicar por WhatsApp');
 
 const monthChipNeedle = "  const monthChip = (key) => { const [y,m] = key.split('-').map(Number); return new Date(y,m-1,1).toLocaleDateString('es-PR',{month:'short',year:'numeric'}).replace('.',''); };";
-const periodHelpers = `${monthChipNeedle}\n  function selectedYear(){ return String(state.selectedYear || String(state.selectedMonth || '').slice(0,4) || new Date().getFullYear()); }\n  function isAllPeriod(){ return state.selectedPeriodMode === 'all'; }\n  function selectedBusinessPeriodSales(){\n    if (!isAllPeriod()) return selectedBusinessSales();\n    const prefix = selectedYear() + '-';\n    return (state.sales || []).filter(s => s.businessId === state.currentBusinessId && String(s.date || '').startsWith(prefix));\n  }\n  function allSelectedPeriodSales(){\n    if (!isAllPeriod()) return allMonthSales();\n    const prefix = selectedYear() + '-';\n    return (state.sales || []).filter(s => String(s.date || '').startsWith(prefix));\n  }\n  function periodLabel(){ return isAllPeriod() ? 'Todos ' + selectedYear() : month(state.selectedMonth); }`;
 if (!vnext.includes('function selectedBusinessPeriodSales()')) {
   if (!vnext.includes(monthChipNeedle)) throw new Error('vNext month helper not found');
-  vnext = vnext.replace(monthChipNeedle, periodHelpers);
+  vnext = vnext.replace(monthChipNeedle, `${monthChipNeedle}
+  function selectedYear(){ return String(state.selectedYear || String(state.selectedMonth || '').slice(0,4) || new Date().getFullYear()); }
+  function isAllPeriod(){ return state.selectedPeriodMode === 'all'; }
+  function selectedBusinessPeriodSales(){
+    if (!isAllPeriod()) return selectedBusinessSales();
+    const prefix = selectedYear() + '-';
+    return (state.sales || []).filter(s => s.businessId === state.currentBusinessId && String(s.date || '').startsWith(prefix));
+  }
+  function allSelectedPeriodSales(){
+    if (!isAllPeriod()) return allMonthSales();
+    const prefix = selectedYear() + '-';
+    return (state.sales || []).filter(s => String(s.date || '').startsWith(prefix));
+  }
+  function periodLabel(){ return isAllPeriod() ? 'Todos ' + selectedYear() : month(state.selectedMonth); }`);
 }
 
 const oldPeriodCss = ".vxPeriods{display:flex;gap:10px;align-items:center}.vxPeriods>span{font-size:13px;font-weight:800;color:#68717e}.vxChips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;flex:1}.vxChip{min-height:42px;border:1px solid var(--vx-line);border-radius:999px;background:#fff;color:#6d7480;font-weight:800;text-transform:capitalize}.vxChip.active{border-color:var(--vx-gold);color:#a97900;background:#fffdf5}";
@@ -34,42 +44,60 @@ const newPeriodCss = ".vxPeriods{display:flex;gap:10px;align-items:flex-end}.vxP
 if (vnext.includes(oldPeriodCss)) vnext = vnext.replace(oldPeriodCss, newPeriodCss);
 else if (!vnext.includes('.vxPeriodSelects{')) throw new Error('vNext period CSS block not found');
 
-vnext = vnext.replace(
-  "@media(max-width:470px){.vxBusiness",
-  "@media(max-width:470px){.vxPeriods{align-items:stretch;flex-direction:column}.vxPeriods>span{padding-bottom:0}.vxPeriodSelects{width:100%;grid-template-columns:minmax(0,1.25fr) minmax(96px,.75fr)}.vxBusiness"
-);
+if (!vnext.includes('.vxPeriodSelects{width:100%')) {
+  const mediaNeedle = '@media(max-width:470px){.vxBusiness';
+  if (!vnext.includes(mediaNeedle)) throw new Error('vNext mobile media block not found');
+  vnext = vnext.replace(mediaNeedle, '@media(max-width:470px){.vxPeriods{align-items:stretch;flex-direction:column}.vxPeriods>span{padding-bottom:0}.vxPeriodSelects{width:100%;grid-template-columns:minmax(0,1.25fr) minmax(96px,.75fr)}.vxBusiness');
+}
 
-const oldPeriods = `  function periods() {\n    const keys = [shiftMonth(state.selectedMonth,-1),state.selectedMonth,shiftMonth(state.selectedMonth,1)];\n    return \`<div class=\\"vxPeriods\\"><span>Periodo:</span><div class=\\"vxChips\\">\${keys.map(k=>\`<button class=\\"vxChip \${k===state.selectedMonth?'active':''}\\" onclick=\\"vxSetMonth('\${k}')\\">\${esc(monthChip(k))}</button>\`).join('')}</div></div>\`;\n  }`;
-const newPeriods = `  function periods() {\n    const currentYear = String(new Date().getFullYear());\n    const years = new Set([currentYear, selectedYear()]);\n    (state.sales || []).forEach(s => { const y=String(s.date||'').slice(0,4); if(/^\\d{4}$/.test(y)) years.add(y); });\n    const monthValue = isAllPeriod() ? 'all' : String(state.selectedMonth || '').slice(5,7);\n    const monthOptions = [['all','Todos'],['01','Enero'],['02','Febrero'],['03','Marzo'],['04','Abril'],['05','Mayo'],['06','Junio'],['07','Julio'],['08','Agosto'],['09','Septiembre'],['10','Octubre'],['11','Noviembre'],['12','Diciembre']].map(([v,l])=>\`<option value=\\"\${v}\\" \${v===monthValue?'selected':''}>\${l}</option>\`).join('');\n    const yearOptions = [...years].sort((a,b)=>Number(b)-Number(a)).map(y=>\`<option value=\\"\${y}\\" \${y===selectedYear()?'selected':''}>\${y}</option>\`).join('');\n    return \`<div class=\\"vxPeriods\\"><span>Periodo:</span><div class=\\"vxPeriodSelects\\"><label class=\\"vxPeriodField\\">Mes<select class=\\"vxPeriodSelect\\" aria-label=\\"Seleccionar mes\\" onchange=\\"vxSetPeriodMonth(this.value)\\">\${monthOptions}</select></label><label class=\\"vxPeriodField\\">Año<select class=\\"vxPeriodSelect\\" aria-label=\\"Seleccionar año\\" onchange=\\"vxSetPeriodYear(this.value)\\">\${yearOptions}</select></label></div></div>\`;\n  }`;
-if (!vnext.includes('aria-label=\\"Seleccionar mes\\"')) {
-  if (!vnext.includes(oldPeriods)) throw new Error('vNext periods() block not found');
-  vnext = vnext.replace(oldPeriods, newPeriods);
+if (!vnext.includes('aria-label="Seleccionar mes"')) {
+  const periodsRegex = /  function periods\(\) \{\n[\s\S]*?\n  \}\n\n  const navItems/;
+  const match = vnext.match(periodsRegex);
+  if (!match) throw new Error('vNext periods() block not found');
+  const newPeriods = `  function periods() {
+    const currentYear = String(new Date().getFullYear());
+    const years = new Set([currentYear, selectedYear()]);
+    (state.sales || []).forEach(s => { const y=String(s.date||'').slice(0,4); if(/^\\d{4}$/.test(y)) years.add(y); });
+    const monthValue = isAllPeriod() ? 'all' : String(state.selectedMonth || '').slice(5,7);
+    const monthOptions = [['all','Todos'],['01','Enero'],['02','Febrero'],['03','Marzo'],['04','Abril'],['05','Mayo'],['06','Junio'],['07','Julio'],['08','Agosto'],['09','Septiembre'],['10','Octubre'],['11','Noviembre'],['12','Diciembre']].map(([v,l])=>\`<option value="\${v}" \${v===monthValue?'selected':''}>\${l}</option>\`).join('');
+    const yearOptions = [...years].sort((a,b)=>Number(b)-Number(a)).map(y=>\`<option value="\${y}" \${y===selectedYear()?'selected':''}>\${y}</option>\`).join('');
+    return \`<div class="vxPeriods"><span>Periodo:</span><div class="vxPeriodSelects"><label class="vxPeriodField">Mes<select class="vxPeriodSelect" aria-label="Seleccionar mes" onchange="vxSetPeriodMonth(this.value)">\${monthOptions}</select></label><label class="vxPeriodField">Año<select class="vxPeriodSelect" aria-label="Seleccionar año" onchange="vxSetPeriodYear(this.value)">\${yearOptions}</select></label></div></div>\`;
+  }
+
+  const navItems`;
+  vnext = vnext.replace(periodsRegex, newPeriods);
 }
 
 vnext = vnext.replaceAll('selectedBusinessSales()', 'selectedBusinessPeriodSales()');
 vnext = vnext.replaceAll('allMonthSales()', 'allSelectedPeriodSales()');
-// Restore helper internals after the global substitutions above.
 vnext = vnext.replace('if (!isAllPeriod()) return selectedBusinessPeriodSales();', 'if (!isAllPeriod()) return selectedBusinessSales();');
 vnext = vnext.replace('if (!isAllPeriod()) return allSelectedPeriodSales();', 'if (!isAllPeriod()) return allMonthSales();');
 
 vnext = vnext.replaceAll('month(state.selectedMonth)', 'periodLabel()');
-// Restore periodLabel itself if replacement touched it.
 vnext = vnext.replace("function periodLabel(){ return isAllPeriod() ? 'Todos ' + selectedYear() : periodLabel(); }", "function periodLabel(){ return isAllPeriod() ? 'Todos ' + selectedYear() : month(state.selectedMonth); }");
 
-vnext = vnext.replace(
-  "function due(){try{return MercaTaxTaxUi.duePresentation({reportingPeriod:state.selectedMonth,currentDate:new Date()});catch(_){return{ready:false,effectiveDate:null,text:'Fecha contributiva no disponible; calendario certificado requerido.'};}}",
-  "function due(){if(isAllPeriod())return{ready:false,effectiveDate:null,text:'Selecciona un mes específico para ver la fecha de vencimiento de Hacienda.'};try{return MercaTaxTaxUi.duePresentation({reportingPeriod:state.selectedMonth,currentDate:new Date()});}catch(_){return{ready:false,effectiveDate:null,text:'Fecha contributiva no disponible; calendario certificado requerido.'};}}"
-);
+const dueNeedle = "function due(){try{return MercaTaxTaxUi.duePresentation({reportingPeriod:state.selectedMonth,currentDate:new Date()});}catch(_){return{ready:false,effectiveDate:null,text:'Fecha contributiva no disponible; calendario certificado requerido.'};}}";
+if (vnext.includes(dueNeedle)) vnext = vnext.replace(dueNeedle, "function due(){if(isAllPeriod())return{ready:false,effectiveDate:null,text:'Selecciona un mes específico para ver la fecha de vencimiento de Hacienda.'};try{return MercaTaxTaxUi.duePresentation({reportingPeriod:state.selectedMonth,currentDate:new Date()});}catch(_){return{ready:false,effectiveDate:null,text:'Fecha contributiva no disponible; calendario certificado requerido.'};}}");
 
-vnext = vnext.replace("${sales.length?'<button class=\\\"vxDeleteAll\\\" onclick=\\\"confirmClear()\\\">Borrar todo</button>':''}", "${sales.length&&!isAllPeriod()?'<button class=\\\"vxDeleteAll\\\" onclick=\\\"confirmClear()\\\">Borrar todo</button>':''}");
+vnext = vnext.replace("${sales.length?'<button class=\"vxDeleteAll\" onclick=\"confirmClear()\">Borrar todo</button>':''}", "${sales.length&&!isAllPeriod()?'<button class=\"vxDeleteAll\" onclick=\"confirmClear()\">Borrar todo</button>':''}");
 
 const setMonthNeedle = "  root.vxSetMonth=(key)=>{state.selectedMonth=key;save();render();};";
-const setPeriodHandlers = `${setMonthNeedle}\n  root.vxSetPeriodMonth=(value)=>{\n    const year=selectedYear();\n    if(value==='all'){state.selectedPeriodMode='all';state.selectedYear=year;}\n    else if(/^(0[1-9]|1[0-2])$/.test(String(value))){state.selectedPeriodMode='month';state.selectedYear=year;state.selectedMonth=year+'-'+value;}\n    save();renderAll();active();\n  };\n  root.vxSetPeriodYear=(value)=>{\n    if(!/^\\d{4}$/.test(String(value)))return;\n    state.selectedYear=String(value);\n    if(!isAllPeriod()){const m=String(state.selectedMonth||'').slice(5,7)||String(new Date().getMonth()+1).padStart(2,'0');state.selectedMonth=state.selectedYear+'-'+m;}\n    save();renderAll();active();\n  };`;
 if (!vnext.includes('root.vxSetPeriodMonth=')) {
   if (!vnext.includes(setMonthNeedle)) throw new Error('vNext month action not found');
-  vnext = vnext.replace(setMonthNeedle, setPeriodHandlers);
+  vnext = vnext.replace(setMonthNeedle, `${setMonthNeedle}
+  root.vxSetPeriodMonth=(value)=>{
+    const year=selectedYear();
+    if(value==='all'){state.selectedPeriodMode='all';state.selectedYear=year;}
+    else if(/^(0[1-9]|1[0-2])$/.test(String(value))){state.selectedPeriodMode='month';state.selectedYear=year;state.selectedMonth=year+'-'+value;}
+    save();renderAll();active();
+  };
+  root.vxSetPeriodYear=(value)=>{
+    if(!/^\\d{4}$/.test(String(value)))return;
+    state.selectedYear=String(value);
+    if(!isAllPeriod()){const m=String(state.selectedMonth||'').slice(5,7)||String(new Date().getMonth()+1).padStart(2,'0');state.selectedMonth=state.selectedYear+'-'+m;}
+    save();renderAll();active();
+  };`);
 }
 
 writeFileSync(vnextBuiltPath, vnext);
-
-console.log('Approved interface and native month/year period selectors baked into vNext before first render; no post-render UI patch or MutationObserver.');
+console.log('Approved interface and month/year period selectors baked into vNext before first render; no post-render UI patch or MutationObserver.');
