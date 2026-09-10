@@ -42,11 +42,12 @@ mkdirSync(reportLogoDir, { recursive: true });
 cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
 // Bake the close X into the same vNext source that creates the three-dot menu.
+// Pin the drawer itself to the visible viewport so neither the drawer nor its X can overflow right.
 const vnextUiPath = `${out}/src/mobile-vnext-ui.js`;
 if (!existsSync(vnextUiPath)) throw new Error('vNext UI source is missing from web bundle');
 let vnextUi = readFileSync(vnextUiPath, 'utf8');
 const menuBuildNeedle = "    const m=$('menu'); if(!m)return; m.classList.add('vxMenu');\n    m.innerHTML=[\n      menuButton(";
-const menuBuildReplacement = "    const m=$('menu'); if(!m)return; m.classList.add('vxMenu'); m.style.position='absolute'; m.style.paddingTop='58px';\n    m.innerHTML=[\n      '<button type=\"button\" aria-label=\"Cerrar menú\" title=\"Cerrar menú\" onclick=\"document.getElementById(\\'menu\\').style.display=\\'none\\'\" style=\"position:absolute!important;top:8px;right:10px;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;margin:0!important;border:0!important;border-bottom:0!important;border-radius:50%!important;background:#f2f2f1!important;color:#11151b!important;font-size:32px!important;font-weight:400!important;line-height:1!important;display:grid!important;place-items:center!important;z-index:9999!important\">×</button>',\n      menuButton(";
+const menuBuildReplacement = "    const m=$('menu'); if(!m)return; m.classList.add('vxMenu'); m.style.position='fixed'; m.style.left='auto'; m.style.right='12px'; m.style.top='calc(76px + var(--safe-top, 0px))'; m.style.width='min(520px, calc(100vw - 24px))'; m.style.maxWidth='calc(100vw - 24px)'; m.style.boxSizing='border-box'; m.style.paddingTop='58px';\n    m.innerHTML=[\n      '<button type=\"button\" aria-label=\"Cerrar menú\" title=\"Cerrar menú\" onclick=\"document.getElementById(\\'menu\\').style.display=\\'none\\'\" style=\"position:absolute!important;top:8px;right:18px;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;margin:0!important;border:0!important;border-bottom:0!important;border-radius:50%!important;background:#f2f2f1!important;color:#11151b!important;font-size:32px!important;font-weight:400!important;line-height:1!important;display:grid!important;place-items:center!important;z-index:9999!important\">×</button>',\n      menuButton(";
 if (!vnextUi.includes('aria-label=\"Cerrar menú\"')) {
   if (!vnextUi.includes(menuBuildNeedle)) throw new Error('vNext three-dot menu builder not found for close-X injection');
   vnextUi = vnextUi.replace(menuBuildNeedle, menuBuildReplacement);
@@ -169,4 +170,4 @@ writeFileSync(
   transformAppSource(readFileSync('src/app.js', 'utf8')),
 );
 
-console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, installable PWA assets, official report icon and three-dot menu close X baked into vNext UI.');
+console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, installable PWA assets, official report icon and viewport-safe three-dot menu close X.');
