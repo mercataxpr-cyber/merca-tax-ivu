@@ -1,9 +1,9 @@
-/* MercaTax IVU PR — TEKI report/menu presentation hardening R4. */
-(function installTekiReportFixR4() {
+/* MercaTax IVU PR — TEKI report/menu presentation hardening R5. */
+(function installTekiReportFixR5() {
   'use strict';
 
   const REPORT_FIX_ID = 'teki-report-screen-r4';
-  const FLOATING_MENU_CLOSE_ID = 'teki-menu-close-r4';
+  const MENU_CLOSE_ATTR = 'data-teki-menu-close-r5';
 
   function modalIsOpen() {
     const modal = document.getElementById('modal');
@@ -26,62 +26,40 @@
   function closeMenu() {
     const menu = getMenu();
     if (menu) menu.style.display = 'none';
-    const x = document.getElementById(FLOATING_MENU_CLOSE_ID);
-    if (x) x.style.display = 'none';
   }
 
-  function ensurePersistentMenuClose() {
-    let button = document.getElementById(FLOATING_MENU_CLOSE_ID);
-    if (!button) {
-      button = document.createElement('button');
-      button.id = FLOATING_MENU_CLOSE_ID;
-      button.type = 'button';
-      button.setAttribute('aria-label', 'Cerrar menú');
-      button.setAttribute('title', 'Cerrar menú');
-      button.textContent = '×';
-      Object.assign(button.style, {
-        position: 'fixed',
-        width: '46px',
-        height: '46px',
-        minWidth: '46px',
-        minHeight: '46px',
-        border: '0',
-        borderRadius: '50%',
-        background: '#f2f2f1',
-        color: '#11151b',
-        fontSize: '32px',
-        fontWeight: '400',
-        lineHeight: '1',
-        placeItems: 'center',
-        cursor: 'pointer',
-        zIndex: '2147483647',
-        padding: '0',
-        margin: '0',
-        boxShadow: '0 2px 8px rgba(0,0,0,.12)'
-      });
-      button.addEventListener('click', closeMenu);
-      document.body.appendChild(button);
-    }
-
+  function ensureMenuCloseControl() {
     const menu = getMenu();
-    if (!menu || !menuIsOpen()) {
-      button.style.display = 'none';
-      return;
-    }
+    if (!menu || menu.querySelector('[' + MENU_CLOSE_ATTR + ']')) return;
 
-    const rect = menu.getBoundingClientRect();
-    button.style.display = 'grid';
-    button.style.top = Math.max(8, rect.top + 8) + 'px';
-    button.style.left = Math.max(8, rect.right - 58) + 'px';
+    menu.style.position = 'absolute';
+    menu.style.paddingTop = '62px';
+
+    const control = document.createElement('div');
+    control.setAttribute(MENU_CLOSE_ATTR, 'true');
+    control.setAttribute('role', 'button');
+    control.setAttribute('tabindex', '0');
+    control.setAttribute('aria-label', 'Cerrar menú');
+    control.setAttribute('title', 'Cerrar menú');
+    control.textContent = '×';
+    control.style.cssText = 'all:initial;position:absolute!important;top:10px!important;right:12px!important;width:44px!important;height:44px!important;display:grid!important;place-items:center!important;border-radius:50%!important;background:#f1f1ef!important;color:#11151b!important;font-family:Arial,sans-serif!important;font-size:32px!important;font-weight:400!important;line-height:44px!important;text-align:center!important;cursor:pointer!important;z-index:2147483647!important;box-shadow:0 2px 8px rgba(0,0,0,.12)!important;box-sizing:border-box!important;';
+    control.addEventListener('click', closeMenu);
+    control.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        closeMenu();
+      }
+    });
+    menu.insertBefore(control, menu.firstChild);
   }
 
   function ensureModalCloseControl() {
     const dialog = document.querySelector('#modal .dialog');
-    if (!dialog || dialog.querySelector('[data-teki-modal-close-r4]')) return;
+    if (!dialog || dialog.querySelector('[data-teki-modal-close-r5]')) return;
     dialog.style.position = 'relative';
     const button = document.createElement('button');
     button.type = 'button';
-    button.setAttribute('data-teki-modal-close-r4', 'true');
+    button.setAttribute('data-teki-modal-close-r5', 'true');
     button.setAttribute('aria-label', 'Cerrar');
     button.setAttribute('title', 'Cerrar');
     button.textContent = '×';
@@ -107,7 +85,7 @@
 
   function patchReportHtml() {
     const current = window.reportHtml;
-    if (typeof current !== 'function' || current.__tekiR4Wrapped) return;
+    if (typeof current !== 'function' || current.__tekiR5Wrapped) return;
 
     function wrappedReportHtml() {
       let html = current.apply(this, arguments);
@@ -138,15 +116,15 @@
       return html;
     }
 
-    wrappedReportHtml.__tekiR4Wrapped = true;
+    wrappedReportHtml.__tekiR5Wrapped = true;
     window.reportHtml = wrappedReportHtml;
   }
 
   function installBackClose() {
-    if (window.__tekiR4BackInstalled) return;
+    if (window.__tekiR5BackInstalled) return;
     const appPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
     if (!appPlugin || typeof appPlugin.addListener !== 'function') return;
-    window.__tekiR4BackInstalled = true;
+    window.__tekiR5BackInstalled = true;
     appPlugin.addListener('backButton', () => {
       if (menuIsOpen()) return closeMenu();
       if (modalIsOpen()) closeModal();
@@ -154,14 +132,14 @@
   }
 
   const observer = new MutationObserver(() => {
-    ensurePersistentMenuClose();
+    ensureMenuCloseControl();
     ensureModalCloseControl();
   });
-  if (document.documentElement) observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+  if (document.documentElement) observer.observe(document.documentElement, { childList: true, subtree: true });
 
   setInterval(() => {
     patchReportHtml();
-    ensurePersistentMenuClose();
+    ensureMenuCloseControl();
     ensureModalCloseControl();
     installBackClose();
   }, 100);
