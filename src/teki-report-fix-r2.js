@@ -1,5 +1,5 @@
-/* MercaTax IVU PR — TEKI report/menu presentation hardening R6. */
-(function installTekiReportFixR6() {
+/* MercaTax IVU PR — TEKI report/menu presentation hardening R7. */
+(function installTekiReportFixR7() {
   'use strict';
 
   const REPORT_FIX_ID = 'teki-report-screen-r4';
@@ -100,18 +100,25 @@
 
   function patchReportHtml() {
     const current = window.reportHtml;
-    if (typeof current !== 'function' || current.__tekiR6Wrapped) return;
+    if (typeof current !== 'function' || current.__tekiR7Wrapped) return;
 
     function wrappedReportHtml() {
       let html = current.apply(this, arguments);
       const officialLogoUrl = getOfficialPageLogoSrc();
+
+      if (!/<meta[^>]+name=["']viewport["']/i.test(html)) {
+        html = html.replace(/<head>/i, '<head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">');
+      } else {
+        html = html.replace(/<meta[^>]+name=["']viewport["'][^>]*>/i, '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">');
+      }
+
       html = html.replace(/<img\s+class="logo"[^>]*>/i, '<img class="logo" src="' + officialLogoUrl.replace(/"/g, '&quot;') + '" alt="MercaTax IVU PR">');
 
       if (!html.includes(REPORT_FIX_ID)) {
         const screenCss = '<style id="' + REPORT_FIX_ID + '">' +
           '@media screen and (max-width:700px){' +
-          'html,body{width:100%;max-width:100%;overflow-x:hidden}body{background:#e5e7eb}' +
-          '.page{width:calc(100% - 16px)!important;max-width:100%!important;min-height:auto!important;margin:8px auto!important;padding:14px!important;box-sizing:border-box!important;overflow:hidden!important}' +
+          'html,body{width:100%!important;max-width:100%!important;margin:0!important;overflow-x:hidden!important}body{background:#e5e7eb}' +
+          '.page{width:calc(100vw - 16px)!important;max-width:calc(100vw - 16px)!important;min-height:auto!important;margin:8px!important;padding:14px!important;box-sizing:border-box!important;overflow:hidden!important}' +
           '.head{display:grid!important;grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr)!important;gap:12px!important;align-items:center!important}' +
           '.brandBlock{display:block!important;min-width:0!important}.brandCopy{display:none!important}' +
           '.logo{display:block!important;width:min(150px,100%)!important;max-width:100%!important;height:auto!important;max-height:86px!important;object-fit:contain!important;object-position:left center!important}' +
@@ -124,22 +131,22 @@
           '.bizSection tbody td:last-child,.bizSection tfoot td:last-child{border-bottom:0!important}.bizSection tbody td:before,.bizSection tfoot td:before{font-weight:800!important;text-align:left!important;color:#555!important}' +
           '.bizSection tbody td:nth-child(1):before{content:"Fecha"}.bizSection tbody td:nth-child(2):before{content:"Municipio"}.bizSection tbody td:nth-child(3):before{content:"Monto vendido"}.bizSection tbody td:nth-child(4):before{content:"Venta sin IVU"}.bizSection tbody td:nth-child(5):before{content:"IVU estatal"}.bizSection tbody td:nth-child(6):before{content:"IVU municipal"}.bizSection tbody td:nth-child(7):before{content:"IVU total"}' +
           '.bizSection tfoot td:first-child{display:block!important;text-align:left!important;background:#fff7df!important;font-weight:900!important}.bizSection tfoot td:first-child:before{content:""!important}.bizSection tfoot td:nth-child(2):before{content:"Monto vendido"}.bizSection tfoot td:nth-child(3):before{content:"Venta sin IVU"}.bizSection tfoot td:nth-child(4):before{content:"IVU estatal"}.bizSection tfoot td:nth-child(5):before{content:"IVU municipal"}.bizSection tfoot td:nth-child(6):before{content:"IVU total"}' +
-          '.foot{gap:12px!important;flex-wrap:wrap!important;align-items:flex-end!important}.sig{width:min(230px,100%)!important}.actions{width:100%!important;max-width:100%!important;margin:14px auto!important;padding:0 8px!important;box-sizing:border-box!important;flex-wrap:wrap!important}.actions button{max-width:100%!important}.page *{box-sizing:border-box}' +
+          '.foot{gap:12px!important;flex-wrap:wrap!important;align-items:flex-end!important}.sig{width:min(230px,100%)!important}.actions{width:calc(100vw - 16px)!important;max-width:calc(100vw - 16px)!important;margin:14px 8px!important;padding:0!important;box-sizing:border-box!important;flex-wrap:wrap!important}.actions button{max-width:100%!important}.page *{box-sizing:border-box}' +
           '}</style>';
         html = html.replace(/<\/head>/i, screenCss + '</head>');
       }
       return html;
     }
 
-    wrappedReportHtml.__tekiR6Wrapped = true;
+    wrappedReportHtml.__tekiR7Wrapped = true;
     window.reportHtml = wrappedReportHtml;
   }
 
   function installBackClose() {
-    if (window.__tekiR6BackInstalled) return;
+    if (window.__tekiR7BackInstalled) return;
     const appPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
     if (!appPlugin || typeof appPlugin.addListener !== 'function') return;
-    window.__tekiR6BackInstalled = true;
+    window.__tekiR7BackInstalled = true;
     appPlugin.addListener('backButton', () => {
       if (menuIsOpen()) return closeMenu();
       if (modalIsOpen()) closeModal();
