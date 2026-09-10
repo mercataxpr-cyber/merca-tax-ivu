@@ -4,6 +4,7 @@
 
   const REPORT_FIX_ID = 'teki-report-screen-r2';
   const CLOSE_ATTR = 'data-teki-modal-close-r2';
+  const OFFICIAL_REPORT_LOGO_PATH = '/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
 
   function modalIsOpen() {
     const modal = document.getElementById('modal');
@@ -70,8 +71,8 @@
 
     function wrappedReportHtml(sales) {
       let html = current.apply(this, arguments);
-      let officialLogoUrl = '/logo.png';
-      try { officialLogoUrl = new URL('/logo.png', window.location.origin).href; } catch (_) {}
+      let officialLogoUrl = OFFICIAL_REPORT_LOGO_PATH;
+      try { officialLogoUrl = new URL(OFFICIAL_REPORT_LOGO_PATH, window.location.origin).href; } catch (_) {}
 
       html = html.replace(
         /<img\s+class="logo"[^>]*>/i,
