@@ -29,30 +29,24 @@ for (const dir of ['assets', 'src']) {
   if (existsSync(dir)) cpSync(dir, `${out}/${dir}`, { recursive: true });
 }
 
-// PWA install source of truth: the user-approved MercaTax icon set committed at repo root.
-// Do not substitute native launcher artwork here; PWA and native packaging are separate concerns.
 for (const source of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
   if (!existsSync(source)) throw new Error(`Approved PWA install icon is missing: ${source}`);
 }
 if (!existsSync('sw.js')) throw new Error('PWA service worker is missing: sw.js');
 if (!existsSync('pwa-register.js')) throw new Error('PWA registration script is missing: pwa-register.js');
 
-// Preserve the approved native 1024px AppIcon for branded report preview/print/export only.
 const reportLogoSource = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
 if (!existsSync(reportLogoSource)) throw new Error(`Approved report logo asset is missing: ${reportLogoSource}`);
 const reportLogoDir = `${out}/ios/App/App/Assets.xcassets/AppIcon.appiconset`;
 mkdirSync(reportLogoDir, { recursive: true });
 cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
-// Static hosting must serve the same certified TAX runtime as server.js.
 let builtIndex = injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')));
 builtIndex = builtIndex.replace(
   '<link rel="manifest" href="manifest.json?v=pwa-rootfix-r1-official">',
   '<link rel="manifest" crossorigin="use-credentials" href="manifest.json?v=icon-preview-r4-auth">',
 );
 
-// Remove the obsolete embedded Base64 splash artwork from the preview bundle and
-// point the splash directly to the already-approved PWA 512px icon.
 const legacySplashImage = /(<div id="splash-screen"><div class="splash-content"><img\s+)src="data:image\/[^"]+"/;
 if (!legacySplashImage.test(builtIndex)) {
   throw new Error('Legacy splash image was not found for official icon replacement');
@@ -131,6 +125,18 @@ if (!builtIndex.includes('pwa-splash-r6')) {
   builtIndex = builtIndex.replace('</head>', `${splashStyle}</head>`);
 }
 
+// Bake the close control into the actual modal markup so it is present before any runtime wrappers.
+const modalMarkup = '<div id="modal" class="modal"><div class="dialog"><h2 id="modalTitle"></h2><div id="modalBody"></div><div class="dialogActions" id="modalActions"><button class="linkBtn" onclick="closeDialog()">Cerrar</button></div></div></div>';
+const modalMarkupWithClose = '<div id="modal" class="modal"><div class="dialog" style="position:relative"><button type="button" class="tekiModalCloseStatic" aria-label="Cerrar" title="Cerrar" onclick="closeDialog()">×</button><h2 id="modalTitle"></h2><div id="modalBody"></div><div class="dialogActions" id="modalActions"><button class="linkBtn" onclick="closeDialog()">Cerrar</button></div></div></div>';
+if (!builtIndex.includes('tekiModalCloseStatic')) {
+  if (!builtIndex.includes(modalMarkup)) throw new Error('Modal markup not found for close-control injection');
+  builtIndex = builtIndex.replace(modalMarkup, modalMarkupWithClose);
+}
+const modalCloseStyle = '<style id="teki-modal-close-static">.tekiModalCloseStatic{position:absolute;top:10px;right:10px;width:44px;height:44px;min-width:44px;min-height:44px;border:0;border-radius:50%;background:rgba(17,20,24,.08);color:#111418;font-size:30px;line-height:1;display:grid;place-items:center;cursor:pointer;z-index:20}.tekiModalCloseStatic:active{transform:scale(.96)}#modalTitle{padding-right:52px}</style>';
+if (!builtIndex.includes('teki-modal-close-static')) {
+  builtIndex = builtIndex.replace('</head>', `${modalCloseStyle}</head>`);
+}
+
 if (!builtIndex.includes('/pwa-register.js')) {
   builtIndex = builtIndex.replace(
     '</body>',
@@ -138,12 +144,10 @@ if (!builtIndex.includes('/pwa-register.js')) {
   );
 }
 
-// Force the report/modal presentation patch to load from a unique URL so preview aliases
-// cannot reuse an older browser/CDN copy. This does not touch tax calculations or print CSS.
 if (!builtIndex.includes('teki-report-fix-r2.js')) {
   builtIndex = builtIndex.replace(
     '</body>',
-    '<script src="/src/teki-report-fix-r2.js?v=report-modal-r2"></script></body>',
+    '<script src="/src/teki-report-fix-r2.js?v=report-modal-r3"></script></body>',
   );
 }
 
@@ -153,4 +157,4 @@ writeFileSync(
   transformAppSource(readFileSync('src/app.js', 'utf8')),
 );
 
-console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, installable PWA assets and official centered splash identity.');
+console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, installable PWA assets, official report icon and baked modal close control.');
