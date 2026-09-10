@@ -137,6 +137,16 @@ if (!builtIndex.includes('/pwa-register.js')) {
     '<script src="/pwa-register.js?v=icon-preview-r4-auth"></script></body>',
   );
 }
+
+// Force the report/modal presentation patch to load from a unique URL so preview aliases
+// cannot reuse an older browser/CDN copy. This does not touch tax calculations or print CSS.
+if (!builtIndex.includes('teki-report-fix-r2.js')) {
+  builtIndex = builtIndex.replace(
+    '</body>',
+    '<script src="/src/teki-report-fix-r2.js?v=report-modal-r2"></script></body>',
+  );
+}
+
 writeFileSync(`${out}/index.html`, builtIndex);
 writeFileSync(
   `${out}/src/app.js`,
