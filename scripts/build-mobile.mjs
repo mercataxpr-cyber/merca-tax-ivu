@@ -29,22 +29,31 @@ for (const dir of ['assets', 'src']) {
   if (existsSync(dir)) cpSync(dir, `${out}/${dir}`, { recursive: true });
 }
 
-// PWA identity is sourced only from the user-approved AppIcons artwork at repo root.
 for (const source of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
   if (!existsSync(source)) throw new Error(`Approved PWA install icon is missing: ${source}`);
 }
 
-// Preserve the native 1024px AppIcon only for branded report preview/print/export.
 const reportLogoSource = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
 if (!existsSync(reportLogoSource)) throw new Error(`Approved report logo asset is missing: ${reportLogoSource}`);
 const reportLogoDir = `${out}/ios/App/App/Assets.xcassets/AppIcon.appiconset`;
 mkdirSync(reportLogoDir, { recursive: true });
 cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
-// Capacitor must consume the same TAX-prepared runtime served by server.js.
-const preparedIndex = stripWebAnalyticsForNative(
+let preparedIndex = stripWebAnalyticsForNative(
   injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')))
 );
+
+const modalMarkup = '<div id="modal" class="modal"><div class="dialog"><h2 id="modalTitle"></h2><div id="modalBody"></div><div class="dialogActions" id="modalActions"><button class="linkBtn" onclick="closeDialog()">Cerrar</button></div></div></div>';
+const modalMarkupWithClose = '<div id="modal" class="modal"><div class="dialog" style="position:relative"><button type="button" class="tekiModalCloseStatic" aria-label="Cerrar" title="Cerrar" onclick="closeDialog()">×</button><h2 id="modalTitle"></h2><div id="modalBody"></div><div class="dialogActions" id="modalActions"><button class="linkBtn" onclick="closeDialog()">Cerrar</button></div></div></div>';
+if (!preparedIndex.includes('tekiModalCloseStatic')) {
+  if (!preparedIndex.includes(modalMarkup)) throw new Error('Modal markup not found for native close-control injection');
+  preparedIndex = preparedIndex.replace(modalMarkup, modalMarkupWithClose);
+}
+const modalCloseStyle = '<style id="teki-modal-close-static">.tekiModalCloseStatic{position:absolute;top:10px;right:10px;width:44px;height:44px;min-width:44px;min-height:44px;border:0;border-radius:50%;background:rgba(17,20,24,.08);color:#111418;font-size:30px;line-height:1;display:grid;place-items:center;cursor:pointer;z-index:20}.tekiModalCloseStatic:active{transform:scale(.96)}#modalTitle{padding-right:52px}</style>';
+if (!preparedIndex.includes('teki-modal-close-static')) {
+  preparedIndex = preparedIndex.replace('</head>', `${modalCloseStyle}</head>`);
+}
+
 writeFileSync(`${out}/index.html`, preparedIndex);
 writeFileSync(`${out}/src/app.js`, transformAppSource(readFileSync('src/app.js', 'utf8')));
 
@@ -68,11 +77,11 @@ if (!html.includes('mobile-native.js')) {
     : `${html}\n${tag}\n`;
 }
 if (!html.includes('teki-report-fix-r2.js')) {
-  const tag = '<script src="src/teki-report-fix-r2.js?v=report-modal-r2" defer></script>';
+  const tag = '<script src="src/teki-report-fix-r2.js?v=report-modal-r3" defer></script>';
   html = /<\/body>/i.test(html)
     ? html.replace(/<\/body>/i, `${tag}</body>`)
     : `${html}\n${tag}\n`;
 }
 writeFileSync(indexPath, html);
 
-console.log('Mobile web bundle ready in www/ with certified TAX transforms, legal pages, native bridge and official PWA identity assets.');
+console.log('Mobile web bundle ready in www/ with certified TAX transforms, legal pages, native bridge, official report icon and baked modal close control.');
