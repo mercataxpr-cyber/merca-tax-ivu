@@ -138,7 +138,7 @@ if (!builtIndex.includes('pwa-splash-r6')) {
   builtIndex = builtIndex.replace('</head>', `${splashStyle}</head>`);
 }
 
-// Bake the close control into the actual modal markup so it is present before any runtime wrappers.
+// Bake the close control into the actual modal markup so it is present before runtime.
 const modalMarkup = '<div id="modal" class="modal"><div class="dialog"><h2 id="modalTitle"></h2><div id="modalBody"></div><div class="dialogActions" id="modalActions"><button class="linkBtn" onclick="closeDialog()">Cerrar</button></div></div></div>';
 const modalMarkupWithClose = '<div id="modal" class="modal"><div class="dialog" style="position:relative"><button type="button" class="tekiModalCloseStatic" aria-label="Cerrar" title="Cerrar" onclick="closeDialog()">×</button><h2 id="modalTitle"></h2><div id="modalBody"></div><div class="dialogActions" id="modalActions"><button class="linkBtn" onclick="closeDialog()">Cerrar</button></div></div></div>';
 if (!builtIndex.includes('tekiModalCloseStatic')) {
@@ -157,17 +157,10 @@ if (!builtIndex.includes('/pwa-register.js')) {
   );
 }
 
-if (!builtIndex.includes('teki-report-fix-r2.js')) {
-  builtIndex = builtIndex.replace(
-    '</body>',
-    '<script src="/src/teki-report-fix-r2.js?v=report-modal-r3"></script></body>',
-  );
-}
-
 writeFileSync(`${out}/index.html`, builtIndex);
 writeFileSync(
   `${out}/src/app.js`,
   transformAppSource(readFileSync('src/app.js', 'utf8')),
 );
 
-console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, installable PWA assets, official report icon and viewport-safe three-dot menu close X.');
+console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, installable PWA assets, official report icon, viewport-safe menu X and no permanent report-fix runtime patch.');
