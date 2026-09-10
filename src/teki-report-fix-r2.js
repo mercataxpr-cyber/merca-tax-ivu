@@ -1,5 +1,5 @@
-/* MercaTax IVU PR — TEKI report/menu presentation hardening R5. */
-(function installTekiReportFixR5() {
+/* MercaTax IVU PR — TEKI report/menu presentation hardening R6. */
+(function installTekiReportFixR6() {
   'use strict';
 
   const REPORT_FIX_ID = 'teki-report-screen-r4';
@@ -28,9 +28,23 @@
     if (menu) menu.style.display = 'none';
   }
 
+  function alignMenuCloseControls() {
+    const menu = getMenu();
+    if (!menu) return;
+    menu.querySelectorAll('[aria-label="Cerrar menú"]').forEach((control) => {
+      control.style.setProperty('right', '28px', 'important');
+      control.style.setProperty('left', 'auto', 'important');
+      control.style.setProperty('max-width', '44px', 'important');
+      control.style.setProperty('box-sizing', 'border-box', 'important');
+    });
+  }
+
   function ensureMenuCloseControl() {
     const menu = getMenu();
-    if (!menu || menu.querySelector('[' + MENU_CLOSE_ATTR + ']')) return;
+    if (!menu || menu.querySelector('[' + MENU_CLOSE_ATTR + ']')) {
+      alignMenuCloseControls();
+      return;
+    }
 
     menu.style.position = 'absolute';
     menu.style.paddingTop = '62px';
@@ -42,7 +56,7 @@
     control.setAttribute('aria-label', 'Cerrar menú');
     control.setAttribute('title', 'Cerrar menú');
     control.textContent = '×';
-    control.style.cssText = 'all:initial;position:absolute!important;top:10px!important;right:12px!important;width:44px!important;height:44px!important;display:grid!important;place-items:center!important;border-radius:50%!important;background:#f1f1ef!important;color:#11151b!important;font-family:Arial,sans-serif!important;font-size:32px!important;font-weight:400!important;line-height:44px!important;text-align:center!important;cursor:pointer!important;z-index:2147483647!important;box-shadow:0 2px 8px rgba(0,0,0,.12)!important;box-sizing:border-box!important;';
+    control.style.cssText = 'all:initial;position:absolute!important;top:10px!important;right:28px!important;left:auto!important;width:44px!important;height:44px!important;max-width:44px!important;display:grid!important;place-items:center!important;border-radius:50%!important;background:#f1f1ef!important;color:#11151b!important;font-family:Arial,sans-serif!important;font-size:32px!important;font-weight:400!important;line-height:44px!important;text-align:center!important;cursor:pointer!important;z-index:2147483647!important;box-shadow:0 2px 8px rgba(0,0,0,.12)!important;box-sizing:border-box!important;';
     control.addEventListener('click', closeMenu);
     control.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
@@ -51,6 +65,7 @@
       }
     });
     menu.insertBefore(control, menu.firstChild);
+    alignMenuCloseControls();
   }
 
   function ensureModalCloseControl() {
@@ -85,7 +100,7 @@
 
   function patchReportHtml() {
     const current = window.reportHtml;
-    if (typeof current !== 'function' || current.__tekiR5Wrapped) return;
+    if (typeof current !== 'function' || current.__tekiR6Wrapped) return;
 
     function wrappedReportHtml() {
       let html = current.apply(this, arguments);
@@ -116,15 +131,15 @@
       return html;
     }
 
-    wrappedReportHtml.__tekiR5Wrapped = true;
+    wrappedReportHtml.__tekiR6Wrapped = true;
     window.reportHtml = wrappedReportHtml;
   }
 
   function installBackClose() {
-    if (window.__tekiR5BackInstalled) return;
+    if (window.__tekiR6BackInstalled) return;
     const appPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
     if (!appPlugin || typeof appPlugin.addListener !== 'function') return;
-    window.__tekiR5BackInstalled = true;
+    window.__tekiR6BackInstalled = true;
     appPlugin.addListener('backButton', () => {
       if (menuIsOpen()) return closeMenu();
       if (modalIsOpen()) closeModal();
@@ -133,6 +148,7 @@
 
   const observer = new MutationObserver(() => {
     ensureMenuCloseControl();
+    alignMenuCloseControls();
     ensureModalCloseControl();
   });
   if (document.documentElement) observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -140,6 +156,7 @@
   setInterval(() => {
     patchReportHtml();
     ensureMenuCloseControl();
+    alignMenuCloseControls();
     ensureModalCloseControl();
     installBackClose();
   }, 100);
