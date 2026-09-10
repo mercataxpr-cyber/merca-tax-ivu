@@ -75,11 +75,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q "src/store-release-ui-r2.js" script.js
-          test -f public/src/store-release-ui-r2.js
-          grep -q "Radicar por WhatsApp" public/src/store-release-ui-r2.js
-          grep -q "\.vxAi, \.vxNote" public/src/store-release-ui-r2.js
-          grep -q "\.vxAdLabel, \.vxAd" public/src/store-release-ui-r2.js
+          grep -q "src/mobile-vnext-ui.js" script.js
+          test -f public/src/mobile-vnext-ui.js
+          grep -q "Radicar por WhatsApp" public/src/mobile-vnext-ui.js
+          grep -q 'aria-label=\\"Seleccionar mes\\"' public/src/mobile-vnext-ui.js
+          grep -q 'aria-label=\\"Seleccionar año\\"' public/src/mobile-vnext-ui.js
+          grep -q 'aria-label=\"Cerrar menú\"' public/src/mobile-vnext-ui.js
+          grep -q 'class=\\"vxAi\\" disabled' public/src/mobile-vnext-ui.js
+          grep -q "Espacio publicitario" public/src/mobile-vnext-ui.js
+          grep -q "mercatax-approved-home-static" public/index.html
+          ! grep -q "teki-report-fix-r2.js" public/index.html
           test -f public/privacy.html
           test -f public/terms.html
           grep -q "MercaTax IVU PR" public/privacy.html
@@ -108,7 +113,11 @@ jobs:
           npm run mobile:tax-parity
           test -f www/privacy.html
           test -f www/terms.html
-          test -f www/src/store-release-ui-r2.js
+          test -f www/src/mobile-vnext-ui.js
+          grep -q 'aria-label=\\"Seleccionar mes\\"' www/src/mobile-vnext-ui.js
+          grep -q 'aria-label=\\"Seleccionar año\\"' www/src/mobile-vnext-ui.js
+          cmp public/src/mobile-vnext-ui.js www/src/mobile-vnext-ui.js
+          ! grep -q "teki-report-fix-r2.js" www/index.html
           ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
           echo "NATIVE_RUNTIME_R2=PASS"
 
