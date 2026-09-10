@@ -66,7 +66,13 @@ if (!html.includes('mobile-native.js')) {
   html = /<\/body>/i.test(html)
     ? html.replace(/<\/body>/i, `${tag}</body>`)
     : `${html}\n${tag}\n`;
-  writeFileSync(indexPath, html);
 }
+if (!html.includes('teki-report-fix-r2.js')) {
+  const tag = '<script src="src/teki-report-fix-r2.js?v=report-modal-r2" defer></script>';
+  html = /<\/body>/i.test(html)
+    ? html.replace(/<\/body>/i, `${tag}</body>`)
+    : `${html}\n${tag}\n`;
+}
+writeFileSync(indexPath, html);
 
 console.log('Mobile web bundle ready in www/ with certified TAX transforms, legal pages, native bridge and official PWA identity assets.');
