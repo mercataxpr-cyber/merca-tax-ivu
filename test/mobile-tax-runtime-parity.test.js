@@ -33,8 +33,8 @@ test('mobile build materializes the finalized approved runtime instead of raw le
 
   // The finalized public bundle is the canonical, already-remediated/approved UI source for native.
   assert.equal(finalizedApp, transformAppSource(rawApp));
-  assert.ok(finalizedVnext.includes('aria-label=\\"Seleccionar mes\\"'));
-  assert.ok(finalizedVnext.includes('aria-label=\\"Seleccionar año\\"'));
+  assert.ok(finalizedVnext.includes('aria-label="Seleccionar mes"'));
+  assert.ok(finalizedVnext.includes('aria-label="Seleccionar año"'));
   assert.ok(finalizedVnext.includes('aria-label=\"Cerrar menú\"'));
   assert.ok(finalizedIndex.includes('mercatax-approved-home-static'));
   assert.ok(!finalizedIndex.includes('teki-report-fix-r2.js'));

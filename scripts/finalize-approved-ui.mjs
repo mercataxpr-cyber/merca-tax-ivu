@@ -100,4 +100,4 @@ if (!vnext.includes('root.vxSetPeriodMonth=')) {
 }
 
 writeFileSync(vnextBuiltPath, vnext);
-console.log('Approved interface and month/year period selectors baked into vNext before first render; no post-render UI patch or MutationObserver.');
+console.log('Approved interface and month/year period selectors baked into vNext before first render.');
