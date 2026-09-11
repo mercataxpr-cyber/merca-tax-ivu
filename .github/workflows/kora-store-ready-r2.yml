@@ -3,6 +3,7 @@ name: KORA Store Ready R2
 on:
   push:
     branches:
+      - main
       - kora/store-ready-r2-work
       - release/store-ready-r2-candidate
   pull_request:
