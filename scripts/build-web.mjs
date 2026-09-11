@@ -60,6 +60,34 @@ builtIndex = builtIndex.replace(
   '<link rel="manifest" crossorigin="use-credentials" href="manifest.json?v=icon-preview-r4-auth">',
 );
 
+// Final CSS guard: the legacy mobile rule can add `left:80px` on narrow screens,
+// and runtime code may try to reposition the drawer. Keep the entire panel inside
+// the visible viewport with !important so the close X cannot be clipped offscreen.
+const menuViewportStyle = `<style id="teki-menu-viewport-r8">
+#menu.vxMenu,
+.menu.vxMenu {
+  position: fixed !important;
+  left: auto !important;
+  right: 12px !important;
+  top: calc(76px + var(--safe-top, 0px)) !important;
+  width: min(520px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 24px) !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+#menu.vxMenu [aria-label="Cerrar menú"],
+.menu.vxMenu [aria-label="Cerrar menú"] {
+  right: 18px !important;
+  left: auto !important;
+  max-width: 44px !important;
+  box-sizing: border-box !important;
+}
+</style>`;
+if (!builtIndex.includes('teki-menu-viewport-r8')) {
+  builtIndex = builtIndex.replace('</head>', `${menuViewportStyle}</head>`);
+}
+
 const legacySplashImage = /(<div id="splash-screen"><div class="splash-content"><img\s+)src="data:image\/[^"]+"/;
 if (!legacySplashImage.test(builtIndex)) {
   throw new Error('Legacy splash image was not found for official icon replacement');
@@ -163,4 +191,4 @@ writeFileSync(
   transformAppSource(readFileSync('src/app.js', 'utf8')),
 );
 
-console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, installable PWA assets, official report icon, viewport-safe menu X and no permanent report-fix runtime patch.');
+console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, installable PWA assets, official report icon, viewport-locked menu X and no permanent report-fix runtime patch.');
