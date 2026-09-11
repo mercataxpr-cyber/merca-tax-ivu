@@ -51,12 +51,22 @@ mkdirSync(reportLogoDir, { recursive: true });
 cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
 // Native starts from the exact finalized browser bundle approved in preview.
-// Remove only web/PWA-only scripts; do not re-render or patch the approved UI.
+// Remove only web/PWA-only scripts and the browser splash. Android/iOS already
+// provide the native launch splash, so keeping the HTML splash would show twice.
 let preparedIndex = stripWebAnalyticsForNative(readFileSync(`${source}/index.html`, 'utf8'));
 preparedIndex = preparedIndex
   .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
   .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
   .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '');
+
+const browserSplash = /<div id="splash-screen"><div class="splash-content">[\s\S]*?<\/div><\/div>\s*/i;
+if (!browserSplash.test(preparedIndex)) {
+  throw new Error('Expected browser splash was not found; refusing to build an unverified native payload.');
+}
+preparedIndex = preparedIndex.replace(browserSplash, '');
+if (preparedIndex.includes('id="splash-screen"')) {
+  throw new Error('Browser splash still exists in native payload after removal.');
+}
 writeFileSync(`${out}/index.html`, preparedIndex);
 
 await build({
@@ -80,4 +90,4 @@ if (!html.includes('mobile-native.js')) {
 }
 writeFileSync(indexPath, html);
 
-console.log('Mobile bundle ready in www/ from finalized public/ output; approved UI parity preserved with no post-render report-fix runtime patch.');
+console.log('Mobile bundle ready in www/ from finalized public/ output; approved UI parity preserved, native launch uses one splash, and no post-render report-fix runtime patch is present.');
