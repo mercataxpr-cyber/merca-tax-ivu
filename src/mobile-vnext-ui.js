@@ -139,7 +139,7 @@
   root.vxSaveBusiness=()=>{const b=biz(),name=($('vxBizName')?.value||'').trim();if(!name)return toast('Ingrese el nombre del negocio');b.name=name;b.muni=$('vxBizMuni')?.value||b.muni;b.merchantNo=($('vxBizMerchant')?.value||'').trim();b.email=($('vxBizEmail')?.value||'').trim();save();render();closeDialog();toast('Perfil del negocio actualizado');};
   root.vxLanguage=()=>{const m=$('menu');if(m)m.style.display='none';showDialog('vxLanguage');$('modalTitle').textContent='Idioma';$('modalBody').innerHTML='<p><b>Español (ES)</b> es el idioma activo de MercaTax IVU PR.</p>';$('modalActions').innerHTML='<button class="btn dark" onclick="closeDialog()">Entendido</button>';};
 
-  const REPORT_LOGO_PATH='ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
+  const REPORT_LOGO_PATH='logo.png';
 
   function installReportBranding(){
     if(typeof root.reportHtml!=='function'||root.reportHtml.__vxBranded)return;
