@@ -1,9 +1,14 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { build } from 'esbuild';
-import { transformAppSource, transformIndexSource } from './runtime-tax-transform.mjs';
-import { injectLegalLinks, stripWebAnalyticsForNative } from './legal-runtime.mjs';
+import { stripWebAnalyticsForNative } from './legal-runtime.mjs';
 
+const source = 'public';
 const out = 'www';
+
+if (!existsSync(`${source}/index.html`)) {
+  throw new Error('Finalized public bundle is missing. Run npm run build before mobile build.');
+}
+
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
@@ -23,30 +28,36 @@ const files = [
 ];
 
 for (const file of files) {
-  if (existsSync(file)) cpSync(file, `${out}/${file}`);
+  const path = `${source}/${file}`;
+  if (existsSync(path)) cpSync(path, `${out}/${file}`);
 }
 for (const dir of ['assets', 'src']) {
-  if (existsSync(dir)) cpSync(dir, `${out}/${dir}`, { recursive: true });
+  const path = `${source}/${dir}`;
+  if (existsSync(path)) cpSync(path, `${out}/${dir}`, { recursive: true });
 }
 
-// PWA identity is sourced only from the user-approved AppIcons artwork at repo root.
-for (const source of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
-  if (!existsSync(source)) throw new Error(`Approved PWA install icon is missing: ${source}`);
+for (const required of ['index.html', 'script.js', 'src/app.js', 'src/mobile-vnext-ui.js']) {
+  if (!existsSync(`${out}/${required}`)) throw new Error(`Finalized native source missing: ${required}`);
 }
 
-// Preserve the native 1024px AppIcon only for branded report preview/print/export.
+for (const icon of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
+  if (!existsSync(`${source}/${icon}`)) throw new Error(`Approved install icon is missing from finalized bundle: ${icon}`);
+}
+
 const reportLogoSource = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
 if (!existsSync(reportLogoSource)) throw new Error(`Approved report logo asset is missing: ${reportLogoSource}`);
 const reportLogoDir = `${out}/ios/App/App/Assets.xcassets/AppIcon.appiconset`;
 mkdirSync(reportLogoDir, { recursive: true });
 cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
-// Capacitor must consume the same TAX-prepared runtime served by server.js.
-const preparedIndex = stripWebAnalyticsForNative(
-  injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')))
-);
+// Native starts from the exact finalized browser bundle approved in preview.
+// Remove only web/PWA-only scripts; do not re-render or patch the approved UI.
+let preparedIndex = stripWebAnalyticsForNative(readFileSync(`${source}/index.html`, 'utf8'));
+preparedIndex = preparedIndex
+  .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
+  .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
+  .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '');
 writeFileSync(`${out}/index.html`, preparedIndex);
-writeFileSync(`${out}/src/app.js`, transformAppSource(readFileSync('src/app.js', 'utf8')));
 
 await build({
   entryPoints: ['src/mobile-native-entry.js'],
@@ -66,7 +77,7 @@ if (!html.includes('mobile-native.js')) {
   html = /<\/body>/i.test(html)
     ? html.replace(/<\/body>/i, `${tag}</body>`)
     : `${html}\n${tag}\n`;
-  writeFileSync(indexPath, html);
 }
+writeFileSync(indexPath, html);
 
-console.log('Mobile web bundle ready in www/ with certified TAX transforms, legal pages, native bridge and official PWA identity assets.');
+console.log('Mobile bundle ready in www/ from finalized public/ output; approved UI parity preserved with no post-render report-fix runtime patch.');

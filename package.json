@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm run build && node server.js",
-    "build": "node scripts/build.mjs && node scripts/build-web.mjs",
+    "build": "node scripts/build.mjs && node scripts/build-web.mjs && node scripts/finalize-approved-ui.mjs",
     "start": "npm run build && node server.js",
     "lint": "node scripts/lint.mjs",
     "test": "node --test test/*.test.js",

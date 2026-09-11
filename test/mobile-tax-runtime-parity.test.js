@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { transformAppSource, transformIndexSource } from '../scripts/runtime-tax-transform.mjs';
-import { injectLegalLinks, stripWebAnalyticsForNative } from '../scripts/legal-runtime.mjs';
+import { transformAppSource } from '../scripts/runtime-tax-transform.mjs';
+import { stripWebAnalyticsForNative } from '../scripts/legal-runtime.mjs';
 
 const nativeTag = '<script src="mobile-native.js" defer></script>';
 
@@ -13,31 +13,52 @@ function stripNativeInjection(html) {
   return html.replace(nativeTag, '');
 }
 
-test('mobile build materializes certified TAX runtime instead of raw legacy sources', () => {
+function expectedNativeIndexFromFinalizedPublic(publicIndex) {
+  return stripWebAnalyticsForNative(publicIndex)
+    .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
+    .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
+    .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '');
+}
+
+test('mobile build materializes the finalized approved runtime instead of raw legacy sources', () => {
   const rawIndex = readFileSync('index.html', 'utf8');
   const rawApp = readFileSync('src/app.js', 'utf8');
+  const finalizedIndex = readFileSync('public/index.html', 'utf8');
+  const finalizedApp = readFileSync('public/src/app.js', 'utf8');
+  const finalizedVnext = readFileSync('public/src/mobile-vnext-ui.js', 'utf8');
 
-  // These assertions make the regression causal: the repository sources still contain
-  // legacy material that must never be copied raw into Capacitor webDir.
+  // Repository sources still contain legacy material that must never be copied raw into Capacitor webDir.
   assert.ok(rawIndex.includes("<script>\nconst WA='17873566336', PIN='1234';"));
   assert.ok(rawApp.includes("if(typeof s.rate==='undefined') s.rate=.115;"));
+
+  // The finalized public bundle is the canonical, already-remediated/approved UI source for native.
+  assert.equal(finalizedApp, transformAppSource(rawApp));
+  assert.ok(finalizedVnext.includes('aria-label=\\"Seleccionar mes\\"'));
+  assert.ok(finalizedVnext.includes('aria-label=\\"Seleccionar año\\"'));
+  assert.ok(finalizedVnext.includes('aria-label=\"Cerrar menú\"'));
+  assert.ok(finalizedIndex.includes('mercatax-approved-home-static'));
+  assert.ok(!finalizedIndex.includes('teki-report-fix-r2.js'));
 
   execFileSync(process.execPath, ['scripts/build-mobile.mjs'], { stdio: 'pipe' });
 
   const builtIndex = readFileSync('www/index.html', 'utf8');
   const builtApp = readFileSync('www/src/app.js', 'utf8');
-  const expectedIndex = stripWebAnalyticsForNative(injectLegalLinks(transformIndexSource(rawIndex)));
+  const builtVnext = readFileSync('www/src/mobile-vnext-ui.js', 'utf8');
+  const expectedIndex = expectedNativeIndexFromFinalizedPublic(finalizedIndex);
 
   assert.equal(stripNativeInjection(builtIndex), expectedIndex);
-  assert.equal(builtApp, transformAppSource(rawApp));
+  assert.equal(builtApp, finalizedApp);
+  assert.equal(builtVnext, finalizedVnext);
   assert.notEqual(stripNativeInjection(builtIndex), rawIndex);
   assert.notEqual(builtApp, rawApp);
 
   assert.ok(builtIndex.includes('<script src="/script.js"></script>'));
   assert.ok(builtIndex.includes('<select id="taxProfile"'));
   assert.ok(builtIndex.includes('legal-links.js'));
+  assert.ok(builtIndex.includes('mercatax-approved-home-static'));
   assert.ok(!builtIndex.includes('googletagmanager.com'));
   assert.ok(!builtIndex.includes("gtag('config'"));
+  assert.ok(!builtIndex.includes('teki-report-fix-r2.js'));
   assert.ok(!builtIndex.includes('id="rate" class="input" type="number" value="11.5"'));
   assert.ok(!builtIndex.includes('<b class="mono">20</b>'));
   assert.ok(!builtApp.includes("if(typeof s.rate==='undefined') s.rate=.115;"));

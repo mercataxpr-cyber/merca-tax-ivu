@@ -5,11 +5,15 @@ import vm from 'node:vm';
 
 const source = readFileSync(new URL('../src/mobile-home-card-r2.js', import.meta.url), 'utf8');
 const buildSource = readFileSync(new URL('../scripts/build.mjs', import.meta.url), 'utf8');
+const finalizerSource = readFileSync(new URL('../scripts/finalize-approved-ui.mjs', import.meta.url), 'utf8');
 
-test('home summary refinement is syntactically valid and loaded after vNext UI', () => {
+test('approved home summary refinement is syntactically valid and baked before first render', () => {
   assert.doesNotThrow(() => new vm.Script(source));
-  assert.match(buildSource, /mobile-vnext-ui\.js', loadHomeCardRefinement/);
-  assert.match(buildSource, /mobile-home-card-r2\.js/);
+  assert.match(finalizerSource, /mobile-home-card-r2\.js/);
+  assert.match(finalizerSource, /mercatax-approved-home-static/);
+  assert.match(finalizerSource, /approved home CSS block not found/);
+  assert.doesNotMatch(buildSource, /mobile-home-card-r2\.js/);
+  assert.doesNotMatch(finalizerSource, /MutationObserver|setInterval\s*\(/);
 });
 
 test('home summary keeps three compact horizontal metric boxes on small screens', () => {
