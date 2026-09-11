@@ -79,8 +79,8 @@ jobs:
           grep -q "src/mobile-vnext-ui.js" script.js
           test -f public/src/mobile-vnext-ui.js
           grep -q "Radicar por WhatsApp" public/src/mobile-vnext-ui.js
-          grep -q 'aria-label=\\"Seleccionar mes\\"' public/src/mobile-vnext-ui.js
-          grep -q 'aria-label=\\"Seleccionar año\\"' public/src/mobile-vnext-ui.js
+          grep -q 'aria-label="Seleccionar mes"' public/src/mobile-vnext-ui.js
+          grep -q 'aria-label="Seleccionar año"' public/src/mobile-vnext-ui.js
           grep -q 'aria-label=\"Cerrar menú\"' public/src/mobile-vnext-ui.js
           grep -q 'class=\\"vxAi\\" disabled' public/src/mobile-vnext-ui.js
           grep -q "Espacio publicitario" public/src/mobile-vnext-ui.js
@@ -115,8 +115,8 @@ jobs:
           test -f www/privacy.html
           test -f www/terms.html
           test -f www/src/mobile-vnext-ui.js
-          grep -q 'aria-label=\\"Seleccionar mes\\"' www/src/mobile-vnext-ui.js
-          grep -q 'aria-label=\\"Seleccionar año\\"' www/src/mobile-vnext-ui.js
+          grep -q 'aria-label="Seleccionar mes"' www/src/mobile-vnext-ui.js
+          grep -q 'aria-label="Seleccionar año"' www/src/mobile-vnext-ui.js
           cmp public/src/mobile-vnext-ui.js www/src/mobile-vnext-ui.js
           ! grep -q "teki-report-fix-r2.js" www/index.html
           ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
