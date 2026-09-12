@@ -42,6 +42,7 @@ const androidIndexPath = 'android/app/src/main/assets/public/index.html';
 const androidAppPath = 'android/app/src/main/assets/public/src/app.js';
 const iosIndexPath = 'ios/App/App/public/index.html';
 const iosAppPath = 'ios/App/App/public/src/app.js';
+const browserSplash = /<div id="splash-screen"><div class="splash-content">[\s\S]*?<\/div><\/div>\s*/i;
 
 const rawIndex = readText('index.html');
 const rawApp = readText('src/app.js');
@@ -52,7 +53,8 @@ const wwwLoader = readText(wwwLoaderPath);
 const expectedIndex = stripWebAnalyticsForNative(readText('public/index.html'))
   .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
   .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
-  .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '');
+  .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
+  .replace(browserSplash, '');
 const expectedApp = transformAppSource(rawApp);
 requireGate(stripNativeInjection(wwwIndex) === expectedIndex, 'www/index.html is not the canonical TAX + Legal - web analytics mobile build output plus native injection');
 requireGate(wwwApp === expectedApp, 'www/src/app.js is not the certified transformAppSource() output');
@@ -64,6 +66,7 @@ requireIncludes(wwwIndex, '<select id="taxProfile"', 'certified tax profile sele
 requireIncludes(wwwIndex, 'id="effectiveDueDate">—</b>', 'certified effective due date placeholder');
 requireIncludes(wwwIndex, 'legal-links.js', 'legal runtime reference');
 requireIncludes(wwwIndex, '<script src="mobile-native.js" defer></script>', 'native bridge injection');
+requireExcludes(wwwIndex, 'id="splash-screen"', 'browser splash');
 requireExcludes(wwwIndex, 'googletagmanager.com', 'web analytics bootstrap');
 requireExcludes(wwwIndex, 'gtag(', 'web analytics bootstrap');
 requireExcludes(wwwIndex, "<script>\nconst WA='17873566336', PIN='1234';", 'inline application');
