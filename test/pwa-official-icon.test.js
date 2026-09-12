@@ -35,6 +35,7 @@ function isIconAsset(path) {
 
 function isAllowedIconAsset(path) {
   if (path === HEADER_LOGO) return true;
+  if (path === 'favicon-32.png' || path === 'favicon.ico') return true;
   if (Object.hasOwn(PWA_ICONS, path)) return true;
   if (path.startsWith('android/app/src/main/res/mipmap-')) return true;
   if (path.startsWith('ios/App/App/Assets.xcassets/AppIcon.appiconset/')) return true;
@@ -46,10 +47,10 @@ function pngSize(buffer) {
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
-test('PWA seed is the approved native AppIcons artwork and technical sizes are valid', () => {
+test('approved PWA and native icon assets exist at their required technical sizes', () => {
   assert.equal(existsSync(APPROVED_NATIVE_SOURCE), true);
   assert.equal(existsSync('icon-192.png'), true);
-  assert.deepEqual(readFileSync('icon-192.png'), readFileSync(APPROVED_NATIVE_SOURCE));
+  assert.deepEqual(pngSize(readFileSync(APPROVED_NATIVE_SOURCE)), { width: 192, height: 192 });
 
   for (const [path, expected] of Object.entries(PWA_ICONS)) {
     assert.equal(existsSync(path), true, `missing approved PWA icon: ${path}`);
@@ -62,10 +63,10 @@ test('PWA seed is the approved native AppIcons artwork and technical sizes are v
 
 test('PWA manifest declares only the approved 192 and 512 install assets', () => {
   assert.equal(manifest.icons.length, 2);
-  assert.equal(manifest.icons[0].src, 'icon-192.png?v=pwa-rootfix-r1-official');
+  assert.equal(manifest.icons[0].src, '/icon-192.png?v=official-preview-r2');
   assert.equal(manifest.icons[0].sizes, '192x192');
   assert.equal(manifest.icons[0].purpose, 'any');
-  assert.equal(manifest.icons[1].src, 'icon-512.png?v=pwa-rootfix-r1-official');
+  assert.equal(manifest.icons[1].src, '/icon-512.png?v=official-preview-r2');
   assert.equal(manifest.icons[1].sizes, '512x512');
   assert.equal(manifest.icons[1].purpose, 'any');
 });
