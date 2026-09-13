@@ -1,0 +1,44 @@
+name: Remove Empty Icon Shell Once
+
+on:
+  push:
+    branches:
+      - release/store-ready-single-splash-r1
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/store-ready-single-splash-r1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Remove empty icon shell and dead icon CSS
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const p = 'index.html';
+          let s = fs.readFileSync(p, 'utf8');
+          const shell = '<div class="brand"><div class="logoBox mini"></div><div>';
+          if (!s.includes(shell)) throw new Error('expected empty icon shell not found');
+          s = s.replace(shell, '<div class="brand"><div>');
+          s = s.replace(/\.logoBox\{[^}]*\}/g, '');
+          s = s.replace(/\.logoBox img\{[^}]*\}/g, '');
+          s = s.replace(/\.mini\{[^}]*\}/g, '');
+          fs.writeFileSync(p, s);
+          NODE
+      - name: Self-delete and commit
+        run: |
+          rm .github/workflows/remove-empty-icon-shell-once.yml
+          git config user.name "MercaTax Cleanup"
+          git config user.email "mercataxpr@gmail.com"
+          git add index.html .github/workflows/remove-empty-icon-shell-once.yml
+          git commit -m "chore(icon): remove empty legacy icon shell"
+          git push origin HEAD:release/store-ready-single-splash-r1
