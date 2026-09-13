@@ -52,8 +52,6 @@ const wwwLoader = readText(wwwLoaderPath);
 
 const expectedIndex = stripWebAnalyticsForNative(readText('public/index.html'))
   .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
-  .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
-  .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
   .replace(browserSplash, '');
 const expectedApp = transformAppSource(rawApp);
 requireGate(stripNativeInjection(wwwIndex) === expectedIndex, 'www/index.html is not the canonical TAX + Legal - web analytics mobile build output plus native injection');
