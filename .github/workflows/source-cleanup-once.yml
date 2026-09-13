@@ -1,0 +1,45 @@
+name: Source Cleanup Once
+
+on:
+  push:
+    branches:
+      - release/store-ready-single-splash-r1
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/store-ready-single-splash-r1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Remove stale embedded icon material from canonical source
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const p = 'index.html';
+          let s = fs.readFileSync(p, 'utf8');
+          s = s.replace(/\n?<link rel="apple-touch-icon"[^>]*>\s*/gi, '\n');
+          s = s.replace(/\n?<link rel="icon"[^>]*data:image[^>]*>\s*/gi, '\n');
+          s = s.replace(/(<div id="splash-screen"><div class="splash-content">)<img[^>]*data:image[^>]*>/i, '$1');
+          s = s.replace(/\n?\.splash-logo\{[^}]*\}/i, '');
+          if (/apple-touch-icon|<link rel="icon"[^>]*data:image|id="splash-screen"[^]*?<img[^>]*data:image/i.test(s)) {
+            throw new Error('stale icon material remains in canonical index.html');
+          }
+          fs.writeFileSync(p, s);
+          NODE
+      - name: Remove this one-time cleanup workflow and commit result
+        run: |
+          rm .github/workflows/source-cleanup-once.yml
+          git config user.name "MercaTax Cleanup"
+          git config user.email "mercataxpr@gmail.com"
+          git add index.html .github/workflows/source-cleanup-once.yml
+          git commit -m "chore(cleanup): remove stale embedded icon source"
+          git push origin HEAD:release/store-ready-single-splash-r1
