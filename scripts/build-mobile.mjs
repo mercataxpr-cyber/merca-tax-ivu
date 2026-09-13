@@ -41,10 +41,7 @@ for (const required of ['index.html', 'script.js', 'src/app.js', 'src/mobile-vne
 // Remove only web/PWA-only scripts and the browser splash. Android/iOS already
 // provide the native launch splash, so keeping the HTML splash would show twice.
 let preparedIndex = stripWebAnalyticsForNative(readFileSync(`${source}/index.html`, 'utf8'));
-preparedIndex = preparedIndex
-  .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
-  .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
-  .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '');
+preparedIndex = preparedIndex.replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '');
 
 const browserSplash = /<div id="splash-screen"><div class="splash-content">[\s\S]*?<\/div><\/div>\s*/i;
 if (!browserSplash.test(preparedIndex)) {
@@ -77,4 +74,4 @@ if (!html.includes('mobile-native.js')) {
 }
 writeFileSync(indexPath, html);
 
-console.log('Mobile bundle ready in www/ from finalized public/ output; approved UI parity preserved, native launch uses one splash, and no post-render report-fix runtime patch is present.');
+console.log('Mobile bundle ready in www/ from finalized public/ output; approved UI parity preserved and native launch uses one splash.');
