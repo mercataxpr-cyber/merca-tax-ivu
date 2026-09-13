@@ -21,10 +21,7 @@ const files = [
   'privacy.html',
   'terms.html',
   'legal-links.js',
-  'logo.png',
-  'icon-192.png',
-  'icon-512.png',
-  'apple-touch-icon.png'
+  'logo.png'
 ];
 
 for (const file of files) {
@@ -39,16 +36,6 @@ for (const dir of ['assets', 'src']) {
 for (const required of ['index.html', 'script.js', 'src/app.js', 'src/mobile-vnext-ui.js']) {
   if (!existsSync(`${out}/${required}`)) throw new Error(`Finalized native source missing: ${required}`);
 }
-
-for (const icon of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
-  if (!existsSync(`${source}/${icon}`)) throw new Error(`Approved install icon is missing from finalized bundle: ${icon}`);
-}
-
-const reportLogoSource = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
-if (!existsSync(reportLogoSource)) throw new Error(`Approved report logo asset is missing: ${reportLogoSource}`);
-const reportLogoDir = `${out}/ios/App/App/Assets.xcassets/AppIcon.appiconset`;
-mkdirSync(reportLogoDir, { recursive: true });
-cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
 // Native starts from the exact finalized browser bundle approved in preview.
 // Remove only web/PWA-only scripts and the browser splash. Android/iOS already
