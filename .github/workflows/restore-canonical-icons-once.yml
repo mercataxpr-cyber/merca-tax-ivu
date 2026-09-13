@@ -1,0 +1,107 @@
+name: Restore Canonical Icons Once
+
+on:
+  push:
+    branches:
+      - release/store-ready-single-splash-r1
+
+permissions:
+  contents: write
+
+jobs:
+  restore-icons:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/store-ready-single-splash-r1
+          fetch-depth: 0
+
+      - name: Generate canonical icons from logo.png
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f logo.png
+
+          mkdir -p \
+            android/app/src/main/res/mipmap-ldpi \
+            android/app/src/main/res/mipmap-mdpi \
+            android/app/src/main/res/mipmap-hdpi \
+            android/app/src/main/res/mipmap-xhdpi \
+            android/app/src/main/res/mipmap-xxhdpi \
+            android/app/src/main/res/mipmap-xxxhdpi \
+            ios/App/App/Assets.xcassets/AppIcon.appiconset \
+            icons
+
+          make_icon() {
+            local size="$1"
+            local out="$2"
+            sips -s format png -z "$size" "$size" logo.png --out "$out" >/dev/null
+          }
+
+          make_icon 36  android/app/src/main/res/mipmap-ldpi/ic_launcher.png
+          make_icon 36  android/app/src/main/res/mipmap-ldpi/ic_launcher_round.png
+          make_icon 48  android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          make_icon 48  android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+          make_icon 72  android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          make_icon 72  android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          make_icon 96  android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          make_icon 96  android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
+          make_icon 144 android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          make_icon 144 android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
+          make_icon 192 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          make_icon 192 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+
+          make_icon 1024 ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+          cat > ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json <<'JSON'
+          {
+            "images": [
+              {
+                "filename": "AppIcon-1024.png",
+                "idiom": "universal",
+                "platform": "ios",
+                "size": "1024x1024"
+              }
+            ],
+            "info": {
+              "author": "xcode",
+              "version": 1
+            }
+          }
+          JSON
+
+          make_icon 192 icons/icon-192.png
+          make_icon 512 icons/icon-512.png
+
+          node <<'NODE'
+          const fs = require('fs');
+          const p = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+          p.icons = [
+            { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+            { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }
+          ];
+          fs.writeFileSync('manifest.json', JSON.stringify(p, null, 2) + '\n');
+          NODE
+
+      - name: Verify no legacy icon payloads or icon hotfix files remain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d android/app/src/main/res/mipmap-hdpi
+          test -f android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          test -f ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+          test -f icons/icon-192.png
+          test -f icons/icon-512.png
+          ! find . -type f \( -iname '*hotfix*' -o -iname '*icon-preview*' -o -iname '*official-icon-payload*' \) -not -path './.git/*' | grep -q .
+
+      - name: Commit canonical assets and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/restore-canonical-icons-once.yml
+          git config user.name "MercaTax"
+          git config user.email "mercataxpr@gmail.com"
+          git add -A
+          git commit -m "fix(icon): restore canonical app icons from logo source"
+          git push origin HEAD:release/store-ready-single-splash-r1
