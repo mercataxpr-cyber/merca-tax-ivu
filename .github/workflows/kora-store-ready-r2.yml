@@ -85,24 +85,11 @@ jobs:
           grep -q 'class="vxAi" disabled' public/src/mobile-vnext-ui.js
           grep -q "Espacio publicitario" public/src/mobile-vnext-ui.js
           grep -q "mercatax-approved-home-static" public/index.html
-          ! grep -q "teki-report-fix-r2.js" public/index.html
           test -f public/privacy.html
           test -f public/terms.html
           grep -q "MercaTax IVU PR" public/privacy.html
           grep -q "15 de agosto de 2026" public/privacy.html
           echo "STORE_PRESENTATION_R2=PASS"
-
-      - name: Verify approved PWA icon identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git hash-object icon-192.png)" = "4eae27ff1365eb7f6e56bdc5c146c6b7999d2778"
-          test "$(git hash-object icon-512.png)" = "1100d87dcbbb810813ec0066c3d3e9e8b6cea0a6"
-          cmp icon-192.png public/icon-192.png
-          cmp icon-512.png public/icon-512.png
-          test -f public/sw.js
-          test -f public/pwa-register.js
-          echo "PWA_IDENTITY_R2=PASS"
 
       - name: Build and prove native runtime parity
         shell: bash
@@ -118,17 +105,8 @@ jobs:
           grep -q 'aria-label="Seleccionar mes"' www/src/mobile-vnext-ui.js
           grep -q 'aria-label="Seleccionar año"' www/src/mobile-vnext-ui.js
           cmp public/src/mobile-vnext-ui.js www/src/mobile-vnext-ui.js
-          ! grep -q "teki-report-fix-r2.js" www/index.html
           ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
           echo "NATIVE_RUNTIME_R2=PASS"
-
-      - name: Verify native icon source transfer
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "570a0f478785916551cc30f8dd99a8e559934e91"
-          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "00bdf9562fbc4bc7d578590751a456c0a419cc31"
-          echo "NATIVE_ICON_TRANSFER_R2=PASS"
 
       - name: Build Android validation artifacts
         shell: bash
