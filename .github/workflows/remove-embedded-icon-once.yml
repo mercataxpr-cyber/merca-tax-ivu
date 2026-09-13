@@ -1,0 +1,44 @@
+name: Remove Embedded Icon Once
+
+on:
+  push:
+    branches:
+      - release/store-ready-single-splash-r1
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/store-ready-single-splash-r1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Remove all embedded data-image icon tags
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const p = 'index.html';
+          let s = fs.readFileSync(p, 'utf8');
+          const before = (s.match(/<img\b[^>]*src="data:image[^>]*>/gi) || []).length;
+          s = s.replace(/<img\b[^>]*src="data:image[^>]*>/gi, '');
+          const after = (s.match(/<img\b[^>]*src="data:image[^>]*>/gi) || []).length;
+          if (after !== 0) throw new Error(`embedded data-image tags remain: ${after}`);
+          if (before === 0) throw new Error('expected embedded icon image was not found');
+          fs.writeFileSync(p, s);
+          console.log(`REMOVED_EMBEDDED_DATA_IMAGE_TAGS=${before}`);
+          NODE
+      - name: Self-delete and commit
+        run: |
+          rm .github/workflows/remove-embedded-icon-once.yml
+          git config user.name "MercaTax Cleanup"
+          git config user.email "mercataxpr@gmail.com"
+          git add index.html .github/workflows/remove-embedded-icon-once.yml
+          git commit -m "chore(icon): remove remaining embedded icon image"
+          git push origin HEAD:release/store-ready-single-splash-r1
