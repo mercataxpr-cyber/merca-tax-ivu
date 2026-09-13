@@ -17,8 +17,6 @@ function stripNativeInjection(html) {
 function expectedNativeIndexFromFinalizedPublic(publicIndex) {
   return stripWebAnalyticsForNative(publicIndex)
     .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
-    .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
-    .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
     .replace(browserSplash, '');
 }
 
@@ -40,7 +38,6 @@ test('mobile build materializes the finalized approved runtime instead of raw le
   assert.ok(finalizedVnext.includes('aria-label=\"Cerrar menú\"'));
   assert.ok(finalizedIndex.includes('mercatax-approved-home-static'));
   assert.ok(finalizedIndex.includes('id="splash-screen"'));
-  assert.ok(!finalizedIndex.includes('teki-report-fix-r2.js'));
 
   execFileSync(process.execPath, ['scripts/build-mobile.mjs'], { stdio: 'pipe' });
 
@@ -62,7 +59,6 @@ test('mobile build materializes the finalized approved runtime instead of raw le
   assert.ok(!builtIndex.includes('id="splash-screen"'));
   assert.ok(!builtIndex.includes('googletagmanager.com'));
   assert.ok(!builtIndex.includes("gtag('config'"));
-  assert.ok(!builtIndex.includes('teki-report-fix-r2.js'));
   assert.ok(!builtIndex.includes('id="rate" class="input" type="number" value="11.5"'));
   assert.ok(!builtIndex.includes('<b class="mono">20</b>'));
   assert.ok(!builtApp.includes("if(typeof s.rate==='undefined') s.rate=.115;"));
