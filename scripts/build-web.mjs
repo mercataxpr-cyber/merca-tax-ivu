@@ -16,7 +16,8 @@ const files = [
   'privacy.html',
   'terms.html',
   'legal-links.js',
-  'logo.png'
+  'logo.png',
+  'app-icon-official.png'
 ];
 
 for (const file of files) {
@@ -28,6 +29,7 @@ for (const dir of ['assets', 'src']) {
 
 if (!existsSync('sw.js')) throw new Error('PWA service worker is missing: sw.js');
 if (!existsSync('pwa-register.js')) throw new Error('PWA registration script is missing: pwa-register.js');
+if (!existsSync('app-icon-official.png')) throw new Error('Canonical official app icon is missing: app-icon-official.png');
 
 // Bake the close X into the same vNext source that creates the three-dot menu.
 // Pin the drawer itself to the visible viewport so neither the drawer nor its X can overflow right.
@@ -102,4 +104,4 @@ writeFileSync(
   transformAppSource(readFileSync('src/app.js', 'utf8')),
 );
 
-console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, stable UI controls and no obsolete icon injection.');
+console.log('Static web bundle ready in public/ with certified TAX transforms, legal navigation, stable UI controls and canonical official app identity.');
