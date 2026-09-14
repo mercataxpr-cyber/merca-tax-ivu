@@ -1,0 +1,72 @@
+name: Restore Official MercaTax App Icon Once
+
+on:
+  push:
+    branches:
+      - release/store-ready-single-splash-r1
+
+permissions:
+  contents: write
+
+jobs:
+  restore-official-icon:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Recover exact approved icon assets from approved branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin kora/store-icon-identity-final-r1 --force
+          git show origin/kora/store-icon-identity-final-r1:icon-192.png > /tmp/mercatax-approved-192.png
+          git show origin/kora/store-icon-identity-final-r1:ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png > /tmp/mercatax-approved-1024.png
+          test "$(git hash-object /tmp/mercatax-approved-192.png)" = '570a0f478785916551cc30f8dd99a8e559934e91'
+          test "$(sips -g pixelWidth /tmp/mercatax-approved-192.png | awk '/pixelWidth/ {print $2}')" = '192'
+          test "$(sips -g pixelHeight /tmp/mercatax-approved-192.png | awk '/pixelHeight/ {print $2}')" = '192'
+          test "$(sips -g pixelWidth /tmp/mercatax-approved-1024.png | awk '/pixelWidth/ {print $2}')" = '1024'
+          test "$(sips -g pixelHeight /tmp/mercatax-approved-1024.png | awk '/pixelHeight/ {print $2}')" = '1024'
+
+      - name: Materialize exact approved identity everywhere
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/mercatax-approved-1024.png app-icon-official.png
+          cp /tmp/mercatax-approved-192.png icon-192.png
+          sips -z 512 512 /tmp/mercatax-approved-1024.png --out icon-512.png >/dev/null
+          sips -z 180 180 /tmp/mercatax-approved-1024.png --out apple-touch-icon.png >/dev/null
+
+          mkdir -p icons public/icons
+          cp icon-192.png icons/icon-192.png
+          cp icon-512.png icons/icon-512.png
+          cp icon-192.png public/icon-192.png
+          cp icon-512.png public/icon-512.png
+          cp apple-touch-icon.png public/apple-touch-icon.png
+          cp icon-192.png public/icons/icon-192.png
+          cp icon-512.png public/icons/icon-512.png
+
+          for spec in 'mipmap-ldpi 36' 'mipmap-mdpi 48' 'mipmap-hdpi 72' 'mipmap-xhdpi 96' 'mipmap-xxhdpi 144' 'mipmap-xxxhdpi 192'; do
+            set -- $spec
+            dir="$1"; size="$2"
+            mkdir -p "android/app/src/main/res/$dir"
+            sips -z "$size" "$size" /tmp/mercatax-approved-192.png --out "android/app/src/main/res/$dir/ic_launcher.png" >/dev/null
+            cp "android/app/src/main/res/$dir/ic_launcher.png" "android/app/src/main/res/$dir/ic_launcher_round.png"
+          done
+
+          mkdir -p ios/App/App/Assets.xcassets/AppIcon.appiconset
+          cp /tmp/mercatax-approved-1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+
+          rm -f .github/workflows/restore-official-mercatax-icon-once.yml
+
+      - name: Commit exact official icon assets and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MercaTax'
+          git config user.email 'mercataxpr@gmail.com'
+          git add -A
+          git commit -m 'fix(icon): restore exact approved MercaTax store icon'
+          git push origin HEAD:release/store-ready-single-splash-r1
