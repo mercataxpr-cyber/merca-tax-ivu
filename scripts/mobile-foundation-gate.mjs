@@ -8,7 +8,9 @@ const config = JSON.parse(readFileSync('capacitor.config.json', 'utf8'));
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const bridge = readFileSync('src/mobile-native-entry.js', 'utf8');
 const androidGradle = readFileSync('android/app/build.gradle', 'utf8');
+const androidManifest = readFileSync('android/app/src/main/AndroidManifest.xml', 'utf8');
 const iosProject = readFileSync('ios/App/App.xcodeproj/project.pbxproj', 'utf8');
+const iosAppIconContents = readFileSync('ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json', 'utf8');
 
 requireGate(config.appId === 'com.mercatax.ivupr', 'Capacitor appId mismatch');
 requireGate(config.appName === 'MercaTax IVU PR', 'Capacitor appName mismatch');
@@ -61,8 +63,15 @@ for (const marker of [
   requireGate(bridge.includes(marker), `Bridge capability missing: ${marker}`);
 }
 
-requireGate(existsSync('android/app/src/main/res/mipmap-hdpi'), 'Android native icon assets missing');
-requireGate(existsSync('ios/App/App/Assets.xcassets/AppIcon.appiconset'), 'iOS native icon assets missing');
+// Store identity has one canonical source. Android uses the exact official PNG
+// directly instead of legacy/generated mipmap launchers; iOS references the same
+// approved 1024px asset through its AppIcon catalog.
+requireGate(existsSync('app-icon-official.png'), 'Canonical official app icon missing');
+requireGate(existsSync('android/app/src/main/res/drawable-nodpi/app_icon_official.png'), 'Android official app icon missing');
+requireGate(androidManifest.includes('android:icon="@drawable/app_icon_official"'), 'Android manifest is not bound to the official app icon');
+requireGate(androidManifest.includes('android:roundIcon="@drawable/app_icon_official"'), 'Android round icon is not bound to the official app icon');
+requireGate(existsSync('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png'), 'iOS official app icon missing');
+requireGate(iosAppIconContents.includes('"filename": "AppIcon-1024.png"'), 'iOS AppIcon catalog is not bound to the official app icon');
 requireGate(existsSync('ios/App/App/Assets.xcassets/Splash.imageset'), 'iOS splash assets missing');
 
 console.log('Mobile R1-B foundation gate PASS');
