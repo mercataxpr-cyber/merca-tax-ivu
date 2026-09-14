@@ -1,0 +1,74 @@
+name: Restore Official MercaTax App Icon Once
+
+on:
+  push:
+    branches:
+      - release/store-ready-single-splash-r1
+
+permissions:
+  contents: write
+
+jobs:
+  restore-official-icon:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore exact official app icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/mercatax-official-icon.b64 <<'B64'
+[omitted]
+B64
+          base64 --decode /tmp/mercatax-official-icon.b64 > /tmp/mercatax-official-icon.png
+          test "$(shasum -a 256 /tmp/mercatax-official-icon.png | awk '{print $1}')" = "99c7a97487acb7015c089f39c7b135cfc5c674beef1e1446914f4730beb659bb"
+
+          cp /tmp/mercatax-official-icon.png app-icon-official.png
+
+          sips -z 192 192 /tmp/mercatax-official-icon.png --out icon-192.png >/dev/null
+          sips -z 512 512 /tmp/mercatax-official-icon.png --out icon-512.png >/dev/null
+          sips -z 180 180 /tmp/mercatax-official-icon.png --out apple-touch-icon.png >/dev/null
+
+          mkdir -p icons public/icons
+          cp icon-192.png icons/icon-192.png
+          cp icon-512.png icons/icon-512.png
+          cp icon-192.png public/icon-192.png
+          cp icon-512.png public/icon-512.png
+          cp apple-touch-icon.png public/apple-touch-icon.png
+          cp icon-192.png public/icons/icon-192.png
+          cp icon-512.png public/icons/icon-512.png
+
+          declare -A sizes=(
+            [mipmap-ldpi]=36
+            [mipmap-mdpi]=48
+            [mipmap-hdpi]=72
+            [mipmap-xhdpi]=96
+            [mipmap-xxhdpi]=144
+            [mipmap-xxxhdpi]=192
+          )
+          for dir in "${!sizes[@]}"; do
+            size="${sizes[$dir]}"
+            mkdir -p "android/app/src/main/res/$dir"
+            sips -z "$size" "$size" /tmp/mercatax-official-icon.png --out "android/app/src/main/res/$dir/ic_launcher.png" >/dev/null
+            cp "android/app/src/main/res/$dir/ic_launcher.png" "android/app/src/main/res/$dir/ic_launcher_round.png"
+          done
+
+          mkdir -p ios/App/App/Assets.xcassets/AppIcon.appiconset
+          cp /tmp/mercatax-official-icon.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+
+          rm -f .github/workflows/restore-official-mercatax-icon-once.yml
+          git status --short
+
+      - name: Commit exact official assets and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MercaTax"
+          git config user.email "mercataxpr@gmail.com"
+          git add -A
+          git commit -m "fix(icon): restore exact official MercaTax IVU PR app icon"
+          git push origin HEAD:release/store-ready-single-splash-r1
