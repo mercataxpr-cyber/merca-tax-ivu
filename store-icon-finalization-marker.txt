@@ -1,1 +1,0 @@
-Temporary marker to validate GitHub write access for store icon finalization. This file should be removed in the same cleanup sequence once the icon source and workflow gate are corrected.
