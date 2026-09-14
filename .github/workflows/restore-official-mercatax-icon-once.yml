@@ -12,31 +12,45 @@ jobs:
   restore-official-icon:
     if: github.actor != 'github-actions[bot]'
     runs-on: macos-26
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ANDROID_BLOB: 7fbaccec4055a9f314e55e9c91c2f19af9578a1c
+      IOS_BLOB: 408584781de00f1ce6d8fff7729b7ef3b7a1fedf
+      ANDROID_SHA256: e083d140f053cd45c9de98a24dd4ec8a120a490da51cf5cbae93242dc70b50c6
+      IOS_SHA256: 8fb78e44c886e86036d050bfde9ec0cfbcfc23ecfe61c347f42488ab537b3418
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Recover exact official icon from repository history
+      - name: Recover exact approved icon assets from Git blobs
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --all --tags --force
-          BLOB='d93b167018731c6e5973ec46409e49bcc2932aa7'
-          git cat-file -e "${BLOB}^{blob}"
-          git cat-file blob "$BLOB" > /tmp/mercatax-official-icon.png
-          test "$(shasum -a 256 /tmp/mercatax-official-icon.png | awk '{print $1}')" = '99c7a97487acb7015c089f39c7b135cfc5c674beef1e1446914f4730beb659bb'
-          sips -g pixelWidth -g pixelHeight /tmp/mercatax-official-icon.png | grep -q '1024'
+          mkdir -p /tmp/mercatax-approved
+          fetch_blob() {
+            local sha="$1"
+            local out="$2"
+            gh api "repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" --jq '.content' \
+              | tr -d '\r\n' \
+              | base64 --decode > "$out"
+            test "$(git hash-object "$out")" = "$sha"
+          }
+          fetch_blob "$ANDROID_BLOB" /tmp/mercatax-approved/android-192.png
+          fetch_blob "$IOS_BLOB" /tmp/mercatax-approved/ios-1024.png
+          echo "$ANDROID_SHA256  /tmp/mercatax-approved/android-192.png" | shasum -a 256 -c -
+          echo "$IOS_SHA256  /tmp/mercatax-approved/ios-1024.png" | shasum -a 256 -c -
+          test "$(sips -g pixelWidth /tmp/mercatax-approved/android-192.png | awk '/pixelWidth/ {print $2}')" = '192'
+          test "$(sips -g pixelWidth /tmp/mercatax-approved/ios-1024.png | awk '/pixelWidth/ {print $2}')" = '1024'
 
-      - name: Materialize official icon everywhere
+      - name: Materialize exact approved identity everywhere
         shell: bash
         run: |
           set -euo pipefail
-          cp /tmp/mercatax-official-icon.png app-icon-official.png
-
-          sips -z 192 192 /tmp/mercatax-official-icon.png --out icon-192.png >/dev/null
-          sips -z 512 512 /tmp/mercatax-official-icon.png --out icon-512.png >/dev/null
-          sips -z 180 180 /tmp/mercatax-official-icon.png --out apple-touch-icon.png >/dev/null
+          cp /tmp/mercatax-approved/ios-1024.png app-icon-official.png
+          cp /tmp/mercatax-approved/android-192.png icon-192.png
+          sips -z 512 512 /tmp/mercatax-approved/ios-1024.png --out icon-512.png >/dev/null
+          sips -z 180 180 /tmp/mercatax-approved/ios-1024.png --out apple-touch-icon.png >/dev/null
 
           mkdir -p icons public/icons
           cp icon-192.png icons/icon-192.png
@@ -51,21 +65,52 @@ jobs:
             set -- $spec
             dir="$1"; size="$2"
             mkdir -p "android/app/src/main/res/$dir"
-            sips -z "$size" "$size" /tmp/mercatax-official-icon.png --out "android/app/src/main/res/$dir/ic_launcher.png" >/dev/null
+            if [ "$size" = '192' ]; then
+              cp /tmp/mercatax-approved/android-192.png "android/app/src/main/res/$dir/ic_launcher.png"
+            else
+              sips -z "$size" "$size" /tmp/mercatax-approved/android-192.png --out "android/app/src/main/res/$dir/ic_launcher.png" >/dev/null
+            fi
             cp "android/app/src/main/res/$dir/ic_launcher.png" "android/app/src/main/res/$dir/ic_launcher_round.png"
           done
 
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/values
+          cat > android/app/src/main/res/values/store_icon_colors.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <color name="store_icon_background">#FFFFFF</color>
+          </resources>
+          XML
+
+          for file in android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml; do
+            cat > "$file" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:drawable="@color/store_icon_background" />
+            <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+          </adaptive-icon>
+          XML
+          done
+
+          for spec in 'mipmap-mdpi 108' 'mipmap-hdpi 162' 'mipmap-xhdpi 216' 'mipmap-xxhdpi 324' 'mipmap-xxxhdpi 432'; do
+            set -- $spec
+            dir="$1"; size="$2"
+            sips -z "$size" "$size" /tmp/mercatax-approved/android-192.png --out "android/app/src/main/res/$dir/ic_launcher_foreground.png" >/dev/null
+          done
+
           mkdir -p ios/App/App/Assets.xcassets/AppIcon.appiconset
-          cp /tmp/mercatax-official-icon.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          cp /tmp/mercatax-approved/ios-1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+
+          test "$(git hash-object icon-192.png)" = "$ANDROID_BLOB"
+          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "$IOS_BLOB"
 
           rm -f .github/workflows/restore-official-mercatax-icon-once.yml
 
-      - name: Commit official icon and remove one-time workflow
+      - name: Commit exact official icon assets and remove one-time workflow
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'MercaTax'
           git config user.email 'mercataxpr@gmail.com'
           git add -A
-          git commit -m 'fix(icon): restore official MercaTax IVU PR app icon'
+          git commit -m 'fix(icon): restore exact approved MercaTax store icon'
           git push origin HEAD:release/store-ready-single-splash-r1
