@@ -153,8 +153,11 @@ async function loadServedRuntime(base) {
     '/src/tax-remediation.js',
     '/src/tax-calendar-contract.js',
     '/src/tax-ui-bridge.js',
+    '/src/runtime-state-compat.js',
     '/src/app.js',
+    '/src/runtime-unresolved-sale-guard.js',
     '/src/mobile-r1-ui.js',
+    '/src/report-popup-r1.js',
     '/src/mobile-vnext-ui.js',
   ]);
 
