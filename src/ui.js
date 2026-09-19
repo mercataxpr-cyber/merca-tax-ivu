@@ -1,7 +1,5 @@
-/* MercaTax IVU PR — NOVA UI Refinement R1 Final.
- * Presentation layer only. Reuses the existing state, actions and TAX domain.
- */
-(function installMercaTaxVNext(root) {
+/* MercaTax IVU PR — canonical UI renderer. */
+(function installMercaTaxUi(root) {
   'use strict';
   const doc = document;
   const $ = (id) => doc.getElementById(id);
@@ -162,6 +160,6 @@
   }
 
   function wrapRender(){if(root.render?.__vxWrapped)return;const legacy=root.render;if(typeof legacy!=='function')return;const wrapped=function(...args){const out=legacy.apply(this,args);renderAll();return out;};wrapped.__vxWrapped=true;root.render=wrapped;}
-  function boot(){installCss();installReportBranding();if(!ensureShell())return;rebuildNav();rebuildMenu();wrapRender();renderAll();root.addEventListener('mercatax:native-ready',renderAll);}
+  function boot(){installCss();installReportBranding();if(!ensureShell())return;rebuildNav();rebuildMenu();wrapRender();renderAll();doc.documentElement.classList.add('mercatax-vnext-ready');root.addEventListener('mercatax:native-ready',renderAll);}
   boot();
 }(window));

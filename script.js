@@ -26,9 +26,8 @@
             load('src/runtime-state-compat.js', () =>
               load('src/app.js', () =>
                 load('src/runtime-unresolved-sale-guard.js', () =>
-                  load('src/mobile-r1-ui.js', () =>
-                    load('src/report-popup-r1.js', () =>
-                      load('src/mobile-vnext-ui.js'))))))))));
+                  load('src/ui-actions.js', () =>
+                    load('src/ui.js')))))))));
   }
 
   if (document.readyState === 'loading') {

@@ -43,18 +43,22 @@ cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 
 // Bake the close X into the same vNext source that creates the three-dot menu.
 // Pin the drawer itself to the visible viewport so neither the drawer nor its X can overflow right.
-const vnextUiPath = `${out}/src/mobile-vnext-ui.js`;
-if (!existsSync(vnextUiPath)) throw new Error('vNext UI source is missing from web bundle');
-let vnextUi = readFileSync(vnextUiPath, 'utf8');
+const uiPath = `${out}/src/ui.js`;
+if (!existsSync(uiPath)) throw new Error('canonical UI source is missing from web bundle');
+let uiSource = readFileSync(uiPath, 'utf8');
 const menuBuildNeedle = "    const m=$('menu'); if(!m)return; m.classList.add('vxMenu');\n    m.innerHTML=[\n      menuButton(";
 const menuBuildReplacement = "    const m=$('menu'); if(!m)return; m.classList.add('vxMenu'); m.style.position='fixed'; m.style.left='auto'; m.style.right='12px'; m.style.top='calc(76px + var(--safe-top, 0px))'; m.style.width='min(520px, calc(100vw - 24px))'; m.style.maxWidth='calc(100vw - 24px)'; m.style.boxSizing='border-box'; m.style.paddingTop='58px';\n    m.innerHTML=[\n      '<button type=\"button\" aria-label=\"Cerrar menú\" title=\"Cerrar menú\" onclick=\"document.getElementById(\\'menu\\').style.display=\\'none\\'\" style=\"position:absolute!important;top:8px;right:18px;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;margin:0!important;border:0!important;border-bottom:0!important;border-radius:50%!important;background:#f2f2f1!important;color:#11151b!important;font-size:32px!important;font-weight:400!important;line-height:1!important;display:grid!important;place-items:center!important;z-index:9999!important\">×</button>',\n      menuButton(";
-if (!vnextUi.includes('aria-label=\"Cerrar menú\"')) {
-  if (!vnextUi.includes(menuBuildNeedle)) throw new Error('vNext three-dot menu builder not found for close-X injection');
-  vnextUi = vnextUi.replace(menuBuildNeedle, menuBuildReplacement);
+if (!uiSource.includes('aria-label=\"Cerrar menú\"')) {
+  if (!uiSource.includes(menuBuildNeedle)) throw new Error('canonical three-dot menu builder not found for close-X injection');
+  uiSource = uiSource.replace(menuBuildNeedle, menuBuildReplacement);
 }
-writeFileSync(vnextUiPath, vnextUi);
+writeFileSync(uiPath, uiSource);
 
 let builtIndex = injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')));
+const bootGateStyle = '<style id="mercatax-vnext-boot-gate">html:not(.mercatax-vnext-ready) .app{visibility:hidden!important}</style>';
+if (!builtIndex.includes('mercatax-vnext-boot-gate')) {
+  builtIndex = builtIndex.replace('</head>', `${bootGateStyle}</head>`);
+}
 builtIndex = builtIndex.replace(
   '<link rel="manifest" href="manifest.json?v=pwa-rootfix-r1-official">',
   '<link rel="manifest" crossorigin="use-credentials" href="manifest.json?v=icon-preview-r4-auth">',

@@ -98,9 +98,9 @@ const loaderOrder = [
   'src/runtime-state-compat.js',
   'src/app.js',
   'src/runtime-unresolved-sale-guard.js',
-  'src/mobile-r1-ui.js',
+  'src/ui-actions.js',
   'src/report-popup-r1.js',
-  'src/mobile-vnext-ui.js'
+  'src/ui.js'
 ];
 let previous = -1;
 for (const marker of loaderOrder) {

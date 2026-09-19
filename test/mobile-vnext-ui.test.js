@@ -2,16 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 
-const ui = readFileSync('src/mobile-vnext-ui.js', 'utf8');
+const ui = readFileSync('src/ui.js', 'utf8');
 const build = readFileSync('scripts/build.mjs', 'utf8');
 const buildMobile = readFileSync('scripts/build-mobile.mjs', 'utf8');
 const buildWeb = readFileSync('scripts/build-web.mjs', 'utf8');
 const reportLogo = 'logo.png';
 
-test('vNext UI is loaded after the existing mobile UI bridge', () => {
-  assert.match(build, /src\/mobile-r1-ui\.js/);
-  assert.match(build, /src\/mobile-vnext-ui\.js/);
-  assert.ok(build.indexOf('src/mobile-r1-ui.js') < build.indexOf('src/mobile-vnext-ui.js'));
+test('canonical UI is loaded after the existing mobile UI bridge', () => {
+  assert.match(build, /src\/ui-actions\.js/);
+  assert.match(build, /src\/ui\.js/);
+  assert.ok(build.indexOf('src/ui-actions.js') < build.indexOf('src/ui.js'));
 });
 
 test('bottom navigation is the approved five-destination model', () => {

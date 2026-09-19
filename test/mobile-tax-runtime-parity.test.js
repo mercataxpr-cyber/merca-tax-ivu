@@ -25,7 +25,7 @@ test('mobile build materializes the finalized approved runtime instead of raw le
   const rawApp = readFileSync('src/app.js', 'utf8');
   const finalizedIndex = readFileSync('public/index.html', 'utf8');
   const finalizedApp = readFileSync('public/src/app.js', 'utf8');
-  const finalizedVnext = readFileSync('public/src/mobile-vnext-ui.js', 'utf8');
+  const finalizedVnext = readFileSync('public/src/ui.js', 'utf8');
 
   // Repository sources still contain legacy material that must never be copied raw into Capacitor webDir.
   assert.ok(rawIndex.includes("<script>\nconst WA='17873566336', PIN='1234';"));
@@ -43,7 +43,7 @@ test('mobile build materializes the finalized approved runtime instead of raw le
 
   const builtIndex = readFileSync('www/index.html', 'utf8');
   const builtApp = readFileSync('www/src/app.js', 'utf8');
-  const builtVnext = readFileSync('www/src/mobile-vnext-ui.js', 'utf8');
+  const builtVnext = readFileSync('www/src/ui.js', 'utf8');
   const expectedIndex = expectedNativeIndexFromFinalizedPublic(finalizedIndex);
 
   assert.equal(stripNativeInjection(builtIndex), expectedIndex);

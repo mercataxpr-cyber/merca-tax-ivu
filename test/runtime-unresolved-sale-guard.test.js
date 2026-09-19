@@ -6,11 +6,11 @@ import vm from 'node:vm';
 const guardSource = readFileSync('src/runtime-unresolved-sale-guard.js', 'utf8');
 const buildSource = readFileSync('scripts/build.mjs', 'utf8');
 
-test('web loader installs aggregate guard after app state migration and before vNext render', () => {
+test('web loader installs aggregate guard after app state migration and before UI render', () => {
   const app = buildSource.indexOf("load('src/app.js'");
   const guard = buildSource.indexOf("load('src/runtime-unresolved-sale-guard.js'");
-  const vnext = buildSource.indexOf("load('src/mobile-vnext-ui.js'");
-  assert.ok(app >= 0 && guard > app && vnext > guard);
+  const ui = buildSource.indexOf("load('src/ui.js'");
+  assert.ok(app >= 0 && guard > app && ui > guard);
 });
 
 test('aggregate guard keeps certified sale-level policy strict and skips unresolved rows only in totals', () => {

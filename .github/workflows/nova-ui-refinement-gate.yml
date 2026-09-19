@@ -40,8 +40,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Syntax check vNext UI
-        run: node --check src/mobile-vnext-ui.js
+      - name: Syntax check canonical UI
+        run: node --check src/ui.js
 
       - name: Build web bundle
         run: npm run build

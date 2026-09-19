@@ -36,7 +36,7 @@ for (const dir of ['assets', 'src']) {
   if (existsSync(path)) cpSync(path, `${out}/${dir}`, { recursive: true });
 }
 
-for (const required of ['index.html', 'script.js', 'src/app.js', 'src/mobile-vnext-ui.js']) {
+for (const required of ['index.html', 'script.js', 'src/app.js', 'src/ui.js']) {
   if (!existsSync(`${out}/${required}`)) throw new Error(`Finalized native source missing: ${required}`);
 }
 
@@ -54,9 +54,7 @@ cpSync(reportLogoSource, `${reportLogoDir}/AppIcon-512@2x.png`);
 // Remove only web/PWA-only scripts; do not re-render or patch the approved UI.
 let preparedIndex = stripWebAnalyticsForNative(readFileSync(`${source}/index.html`, 'utf8'));
 preparedIndex = preparedIndex
-  .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
-  .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
-  .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '');
+  .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '');
 writeFileSync(`${out}/index.html`, preparedIndex);
 
 await build({

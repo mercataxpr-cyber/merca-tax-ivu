@@ -1,8 +1,5 @@
-/* MercaTax IVU PR — NOVA Home Summary Card R3.
- * Presentation-only compact home refinement loaded after mobile-vnext-ui.js.
- * Reuses the existing TAX due presentation and never hard-codes a filing date.
- */
-(function installMercaTaxHomeCardR3(root) {
+/* MercaTax IVU PR — canonical Home presentation styles used at build time. */
+(function installMercaTaxHomeStyles(root) {
   'use strict';
 
   const doc = document;
