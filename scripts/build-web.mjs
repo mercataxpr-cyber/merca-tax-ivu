@@ -55,6 +55,10 @@ if (!vnextUi.includes('aria-label=\"Cerrar menú\"')) {
 writeFileSync(vnextUiPath, vnextUi);
 
 let builtIndex = injectLegalLinks(transformIndexSource(readFileSync('index.html', 'utf8')));
+const bootGateStyle = '<style id="mercatax-vnext-boot-gate">html:not(.mercatax-vnext-ready) .app{visibility:hidden!important}</style>';
+if (!builtIndex.includes('mercatax-vnext-boot-gate')) {
+  builtIndex = builtIndex.replace('</head>', `${bootGateStyle}</head>`);
+}
 builtIndex = builtIndex.replace(
   '<link rel="manifest" href="manifest.json?v=pwa-rootfix-r1-official">',
   '<link rel="manifest" crossorigin="use-credentials" href="manifest.json?v=icon-preview-r4-auth">',
