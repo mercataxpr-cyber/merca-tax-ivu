@@ -6,6 +6,7 @@ import { transformAppSource } from '../scripts/runtime-tax-transform.mjs';
 import { stripWebAnalyticsForNative } from '../scripts/legal-runtime.mjs';
 
 const nativeTag = '<script src="mobile-native.js" defer></script>';
+const browserSplash = /<div id="splash-screen"><div class="splash-content">[\s\S]*?<\/div><\/div>\s*/i;
 
 function stripNativeInjection(html) {
   const count = html.split(nativeTag).length - 1;
@@ -17,7 +18,8 @@ function expectedNativeIndexFromFinalizedPublic(publicIndex) {
   return stripWebAnalyticsForNative(publicIndex)
     .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
     .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
-    .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '');
+    .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
+    .replace(browserSplash, '');
 }
 
 test('mobile build materializes the finalized approved runtime instead of raw legacy sources', () => {
@@ -37,6 +39,7 @@ test('mobile build materializes the finalized approved runtime instead of raw le
   assert.ok(finalizedVnext.includes('aria-label="Seleccionar año"'));
   assert.ok(finalizedVnext.includes('aria-label=\"Cerrar menú\"'));
   assert.ok(finalizedIndex.includes('mercatax-approved-home-static'));
+  assert.ok(finalizedIndex.includes('id="splash-screen"'));
   assert.ok(!finalizedIndex.includes('teki-report-fix-r2.js'));
 
   execFileSync(process.execPath, ['scripts/build-mobile.mjs'], { stdio: 'pipe' });
@@ -56,6 +59,7 @@ test('mobile build materializes the finalized approved runtime instead of raw le
   assert.ok(builtIndex.includes('<select id="taxProfile"'));
   assert.ok(builtIndex.includes('legal-links.js'));
   assert.ok(builtIndex.includes('mercatax-approved-home-static'));
+  assert.ok(!builtIndex.includes('id="splash-screen"'));
   assert.ok(!builtIndex.includes('googletagmanager.com'));
   assert.ok(!builtIndex.includes("gtag('config'"));
   assert.ok(!builtIndex.includes('teki-report-fix-r2.js'));
