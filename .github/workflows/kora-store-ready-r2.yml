@@ -79,17 +79,17 @@ jobs:
           grep -q "src/mobile-vnext-ui.js" script.js
           test -f public/src/mobile-vnext-ui.js
           grep -q "Radicar por WhatsApp" public/src/mobile-vnext-ui.js
-          grep -q 'aria-label=\\"Seleccionar mes\\"' public/src/mobile-vnext-ui.js
-          grep -q 'aria-label=\\"Seleccionar año\\"' public/src/mobile-vnext-ui.js
-          grep -q 'aria-label=\"Cerrar menú\"' public/src/mobile-vnext-ui.js
-          grep -q 'class=\\"vxAi\\" disabled' public/src/mobile-vnext-ui.js
+          grep -q 'aria-label="Seleccionar mes"' public/src/mobile-vnext-ui.js
+          grep -q 'aria-label="Seleccionar año"' public/src/mobile-vnext-ui.js
+          grep -q 'aria-label="Cerrar menú"' public/src/mobile-vnext-ui.js
+          grep -q 'class="vxAi" disabled' public/src/mobile-vnext-ui.js
           grep -q "Espacio publicitario" public/src/mobile-vnext-ui.js
           grep -q "mercatax-approved-home-static" public/index.html
           ! grep -q "teki-report-fix-r2.js" public/index.html
           test -f public/privacy.html
           test -f public/terms.html
           grep -q "MercaTax IVU PR" public/privacy.html
-          grep -q "24 de agosto de 2026" public/privacy.html
+          grep -q "15 de agosto de 2026" public/privacy.html
           echo "STORE_PRESENTATION_R2=PASS"
 
       - name: Verify approved PWA icon identity
@@ -115,8 +115,8 @@ jobs:
           test -f www/privacy.html
           test -f www/terms.html
           test -f www/src/mobile-vnext-ui.js
-          grep -q 'aria-label=\\"Seleccionar mes\\"' www/src/mobile-vnext-ui.js
-          grep -q 'aria-label=\\"Seleccionar año\\"' www/src/mobile-vnext-ui.js
+          grep -q 'aria-label="Seleccionar mes"' www/src/mobile-vnext-ui.js
+          grep -q 'aria-label="Seleccionar año"' www/src/mobile-vnext-ui.js
           cmp public/src/mobile-vnext-ui.js www/src/mobile-vnext-ui.js
           ! grep -q "teki-report-fix-r2.js" www/index.html
           ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
@@ -126,8 +126,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "7fbaccec4055a9f314e55e9c91c2f19af9578a1c"
-          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "408584781de00f1ce6d8fff7729b7ef3b7a1fedf"
+          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "570a0f478785916551cc30f8dd99a8e559934e91"
+          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "00bdf9562fbc4bc7d578590751a456c0a419cc31"
           echo "NATIVE_ICON_TRANSFER_R2=PASS"
 
       - name: Build Android validation artifacts

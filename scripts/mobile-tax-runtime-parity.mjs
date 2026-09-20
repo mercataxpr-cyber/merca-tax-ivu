@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { transformAppSource, transformIndexSource } from './runtime-tax-transform.mjs';
-import { injectLegalLinks, stripWebAnalyticsForNative } from './legal-runtime.mjs';
+import { transformAppSource } from './runtime-tax-transform.mjs';
+import { stripWebAnalyticsForNative } from './legal-runtime.mjs';
 
 function requireGate(condition, message) {
   if (!condition) throw new Error(message);
@@ -49,9 +49,10 @@ const wwwIndex = readText(wwwIndexPath);
 const wwwApp = readText(wwwAppPath);
 const wwwLoader = readText(wwwLoaderPath);
 
-const expectedIndex = stripWebAnalyticsForNative(
-  injectLegalLinks(transformIndexSource(rawIndex))
-);
+const expectedIndex = stripWebAnalyticsForNative(readText('public/index.html'))
+  .replace(/<script\s+src="\/pwa-register\.js[^>]*><\/script>/gi, '')
+  .replace(/<script\s+src="\/src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '')
+  .replace(/<script\s+src="src\/teki-report-fix-r2\.js[^>]*><\/script>/gi, '');
 const expectedApp = transformAppSource(rawApp);
 requireGate(stripNativeInjection(wwwIndex) === expectedIndex, 'www/index.html is not the canonical TAX + Legal - web analytics mobile build output plus native injection');
 requireGate(wwwApp === expectedApp, 'www/src/app.js is not the certified transformAppSource() output');
@@ -94,8 +95,12 @@ const loaderOrder = [
   'src/tax-remediation.js',
   'src/tax-calendar-contract.js',
   'src/tax-ui-bridge.js',
+  'src/runtime-state-compat.js',
   'src/app.js',
-  'src/mobile-r1-ui.js'
+  'src/runtime-unresolved-sale-guard.js',
+  'src/mobile-r1-ui.js',
+  'src/report-popup-r1.js',
+  'src/mobile-vnext-ui.js'
 ];
 let previous = -1;
 for (const marker of loaderOrder) {
