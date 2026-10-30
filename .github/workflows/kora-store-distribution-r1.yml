@@ -1,7 +1,7 @@
 name: KORA Store Distribution R1
 
 on:
-  # Solo envío manual; Android no debe depender de firma Apple ni de workflows anteriores.
+  # Distribución conjunta Android/Apple solo por solicitud explícita; Apple sigue pendiente.
   workflow_dispatch:
     inputs:
       certified_sha:
