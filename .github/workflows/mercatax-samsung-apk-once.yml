@@ -1,0 +1,79 @@
+name: MercaTax Samsung Android APK - one shot
+
+on:
+  push:
+    branches:
+      - build/mercatax-android-samsung-20261029
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mercatax-samsung-android-one-shot
+  cancel-in-progress: false
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact approved main code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Generate native assets from the one approved MercaTax icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run mobile:build
+          npx cap sync android
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+          test -s ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          ! grep -Ril "MT / IVU PR" android/app/src/main/res/mipmap-* || false
+
+      - name: Compile Android debug APK for physical Samsung
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --console=plain
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Check APK native/web identity and privacy
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          unzip -p "$APK" assets/public/index.html > /tmp/mercatax-android-index.html
+          test -s /tmp/mercatax-android-index.html
+          ! grep -q 'id="splash-screen"' /tmp/mercatax-android-index.html
+          ! grep -Eqi 'googletagmanager\.com|gtag\(' /tmp/mercatax-android-index.html
+          unzip -p "$APK" assets/public/icon-512.png > /tmp/mercatax-android-icon-512.png
+          cmp icon-512.png /tmp/mercatax-android-icon-512.png
+          unzip -l "$APK" | grep -q 'classes.dex'
+          sha256sum "$APK"
+          echo "MERCATAX_SAMSUNG_APK_READY=PASS"
+
+      - name: Upload verified Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MercaTax-IVU-PR-Android-Samsung-icono-oficial-${{ github.sha }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
