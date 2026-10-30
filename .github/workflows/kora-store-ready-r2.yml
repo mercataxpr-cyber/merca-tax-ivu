@@ -1,15 +1,8 @@
 name: KORA Store Ready R2
 
 on:
-  push:
-    branches:
-      - main
-      - kora/store-ready-r2-work
-      - release/store-ready-r2-candidate
-  pull_request:
-    branches:
-      - release/store-ready-r2-candidate
-      - main
+  # Las certificaciones costosas se autorizan y ejecutan manualmente.
+  # Conservar tax, seguridad, integridad del APK y validaciones de iOS sin duplicar CI por cada cambio.
   workflow_dispatch:
 
 permissions:
