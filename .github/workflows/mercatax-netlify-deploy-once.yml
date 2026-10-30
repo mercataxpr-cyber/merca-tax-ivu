@@ -1,0 +1,69 @@
+name: MercaTax Netlify production - one shot
+
+on:
+  push:
+    branches:
+      - deploy/mercatax-netlify-20261029
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mercatax-netlify-prod-one-shot
+  cancel-in-progress: false
+
+jobs:
+  publish-mercatax-netlify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+    steps:
+      - name: Confirm existing Netlify credentials without disclosing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${NETLIFY_AUTH_TOKEN:-}" ] || [ -z "${NETLIFY_SITE_ID:-}" ]; then
+            echo "::error::NETLIFY_CREDENTIALS_MISSING: Netlify token and/or site ID are not connected to GitHub repository secrets."
+            exit 2
+          fi
+          echo "NETLIFY_CREDENTIALS_PRESENT=PASS"
+
+      - name: Checkout production main SHA only
+        uses: actions/checkout@v4
+        with:
+          ref: 27763aa09e4d905c0d7acef28dd81c7ccc1b8ae3
+          persist-credentials: false
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build approved web for Netlify
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          test -s public/index.html
+          test -s public/icon-512.png
+          test -s public/privacy.html
+
+      - name: Deploy exact main build to connected Netlify site
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes netlify-cli deploy --prod --dir=public --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN" --message="MercaTax IVU PR main 27763aa0 official icon"
+
+      - name: Verify Netlify homepage and privacy page respond
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --max-time 30 https://mercatax.netlify.app/ -o /tmp/netlify-index.html
+          curl --fail --location --silent --show-error --max-time 30 https://mercatax.netlify.app/privacy.html -o /tmp/netlify-privacy.html
+          grep -qi "MercaTax IVU PR" /tmp/netlify-index.html
+          grep -qi "Política de Privacidad" /tmp/netlify-privacy.html
+          echo "NETLIFY_PUBLIC_PAGES=PASS"
