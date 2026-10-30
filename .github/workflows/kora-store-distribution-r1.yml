@@ -1,13 +1,7 @@
 name: KORA Store Distribution R1
 
 on:
-  workflow_run:
-    workflows:
-      - KORA Store Ready R2
-    types:
-      - completed
-    branches:
-      - main
+  # Solo envío manual; Android no debe depender de firma Apple ni de workflows anteriores.
   workflow_dispatch:
     inputs:
       certified_sha:
@@ -19,16 +13,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: kora-store-distribution-${{ github.event.workflow_run.head_sha || inputs.certified_sha || github.sha }}
+  group: kora-store-distribution-${{ inputs.certified_sha }}
   cancel-in-progress: false
 
 jobs:
   build-upload-ready:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: macos-26
     timeout-minutes: 60
     env:
-      CERTIFIED_SHA: ${{ github.event.workflow_run.head_sha || inputs.certified_sha || github.sha }}
+      CERTIFIED_SHA: ${{ inputs.certified_sha }}
     steps:
       - name: Checkout exact certified candidate
         uses: actions/checkout@v4
