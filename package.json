@@ -18,7 +18,7 @@
     "test:mobile-tax-parity": "node --test test/mobile-tax-runtime-parity.test.js",
     "secret-scan": "node scripts/secret-scan.mjs",
     "gate": "npm run build && npm run lint && npm test && npm run secret-scan",
-    "mobile:build": "npm run build && node scripts/build-mobile.mjs",
+    "mobile:build": "node scripts/generate-approved-icons.mjs && npm run build && node scripts/build-mobile.mjs",
     "mobile:sync": "npm run mobile:build && cap sync",
     "mobile:open:ios": "npm run mobile:sync && cap open ios",
     "mobile:open:android": "npm run mobile:sync && cap open android",

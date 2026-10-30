@@ -35,7 +35,7 @@ for (const source of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
 if (!existsSync('sw.js')) throw new Error('PWA service worker is missing: sw.js');
 if (!existsSync('pwa-register.js')) throw new Error('PWA registration script is missing: pwa-register.js');
 
-const reportLogoSource = 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png';
+const reportLogoSource = 'icon-512.png';
 if (!existsSync(reportLogoSource)) throw new Error(`Approved report logo asset is missing: ${reportLogoSource}`);
 const reportLogoDir = `${out}/ios/App/App/Assets.xcassets/AppIcon.appiconset`;
 mkdirSync(reportLogoDir, { recursive: true });

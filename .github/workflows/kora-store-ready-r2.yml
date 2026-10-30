@@ -122,14 +122,6 @@ jobs:
           ! grep -Eqi 'googletagmanager\.com|gtag\(' www/index.html
           echo "NATIVE_RUNTIME_R2=PASS"
 
-      - name: Verify native icon source transfer
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git hash-object android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)" = "570a0f478785916551cc30f8dd99a8e559934e91"
-          test "$(git hash-object ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png)" = "00bdf9562fbc4bc7d578590751a456c0a419cc31"
-          echo "NATIVE_ICON_TRANSFER_R2=PASS"
-
       - name: Build Android validation artifacts
         shell: bash
         run: |

@@ -6,7 +6,6 @@ import { transformAppSource, transformIndexSource } from '../scripts/runtime-tax
 
 const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
 const HEADER_LOGO = 'logo.png';
-const APPROVED_NATIVE_SOURCE = 'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png';
 const PWA_ICONS = {
   'icon-192.png': { width: 192, height: 192 },
   'icon-512.png': { width: 512, height: 512 },
@@ -47,10 +46,8 @@ function pngSize(buffer) {
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
-test('approved PWA and native icon assets exist at their required technical sizes', () => {
-  assert.equal(existsSync(APPROVED_NATIVE_SOURCE), true);
+test('approved PWA root icon assets exist at their required technical sizes', () => {
   assert.equal(existsSync('icon-192.png'), true);
-  assert.deepEqual(pngSize(readFileSync(APPROVED_NATIVE_SOURCE)), { width: 192, height: 192 });
 
   for (const [path, expected] of Object.entries(PWA_ICONS)) {
     assert.equal(existsSync(path), true, `missing approved PWA icon: ${path}`);
