@@ -96,8 +96,8 @@ test('three-dot menu stays above the bottom navigation with internal scrolling',
 test('Android Back closes the open menu through one transient listener and leaves native navigation alone', async () => {
   const native = readFileSync('src/mobile-native-entry.js', 'utf8');
   assert.equal((native.match(/addListener\('backButton'/g) || []).length, 1);
-  assert.match(native, /if \(!bridge\.isNative\) return;\n  installMenuBackButton\(\);/);
-  const fnSource = native.match(/function installMenuBackButton\(\) \{[\s\S]*?\n\}\n/)?.[0];
+  assert.match(native, /if \(!bridge\.isNative\) return;\r?\n  installMenuBackButton\(\);/);
+  const fnSource = native.match(/function installMenuBackButton\(\) \{[\s\S]*?\r?\n\}\r?\n/)?.[0];
   assert.ok(fnSource, 'installMenuBackButton not found');
 
   const menu = { style: { display: 'none' } };
