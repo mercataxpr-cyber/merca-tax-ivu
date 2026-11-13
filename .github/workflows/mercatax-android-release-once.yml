@@ -129,9 +129,17 @@ jobs:
           test -n "$APK_CERT" && test "$APK_CERT" = "$AAB_CERT"
           if keytool -printcert -jarfile "$AAB" | grep -qi "Android Debug"; then echo "::error::Debug certificate"; exit 1; fi
           "$BT/aapt2" dump badging "$APK" > /tmp/badging.txt
+          grep -E "^package:|^application-label:|^application-icon-640:|^sdkVersion:|^targetSdkVersion:" /tmp/badging.txt
           grep -q "package: name='com.mercatax.ivupr' versionCode='2' versionName='1.0.1'" /tmp/badging.txt
           grep -q "application-label:'MercaTax IVU PR'" /tmp/badging.txt
-          grep -q "application-icon-640:'res/mipmap-anydpi-v26/ic_launcher.xml'" /tmp/badging.txt
+          # Release APKs may shorten resource paths; the launcher entries are checked in the resource table below.
+          grep -q "^application-icon-640:" /tmp/badging.txt
+          java -jar /tmp/bundletool.jar dump manifest --bundle="$AAB" > /tmp/aab-manifest.xml
+          grep -q 'package="com.mercatax.ivupr"' /tmp/aab-manifest.xml
+          grep -q 'android:versionCode="2"' /tmp/aab-manifest.xml
+          grep -q 'android:versionName="1.0.1"' /tmp/aab-manifest.xml
+          grep -o 'android:icon="[^"]*"' /tmp/aab-manifest.xml | head -2 || true
+          echo "AAB_MANIFEST_IDENTITY=PASS"
           mkdir -p /tmp/apk /tmp/aab
           unzip -q "$APK" -d /tmp/apk
           unzip -q "$AAB" -d /tmp/aab
