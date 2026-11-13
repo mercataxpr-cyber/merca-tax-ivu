@@ -86,10 +86,13 @@
   // Single owner of the three-dot menu: markup, close control and dismissal.
   // Geometry lives in the .menu.vxMenu CSS above: fixed below the header, capped above the
   // bottom navigation and system bars, with the option list scrolling internally.
+  // The Android hardware Back key is wired in src/mobile-native-entry.js through these two exports.
+  function isMenuOpen(){const m=$('menu');return !!m&&m.style.display==='block';}
   function closeMenu(){const m=$('menu');if(m)m.style.display='none';}
+  root.vxMenuIsOpen=isMenuOpen;
   root.vxCloseMenu=closeMenu;
   function installMenuDismiss(){
-    doc.addEventListener('pointerdown',e=>{const m=$('menu');const t=e.target;if(!m||m.style.display!=='block'||m.contains(t)||(t&&t.closest&&t.closest('.dots')))return;closeMenu();},true);
+    doc.addEventListener('pointerdown',e=>{const m=$('menu');const t=e.target;if(!isMenuOpen()||m.contains(t)||(t&&t.closest&&t.closest('.dots')))return;closeMenu();},true);
     doc.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu();});
   }
   function rebuildMenu(){

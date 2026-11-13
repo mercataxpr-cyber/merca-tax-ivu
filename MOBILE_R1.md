@@ -6,9 +6,8 @@ Native identity:
 
 - iOS bundle ID: `com.mercatax.ivupr`
 - Android application ID: `com.mercatax.ivupr`
-- Version: `1.0.0`
-- iOS build: `1`
-- Android versionCode: `1`
+- iOS version: `1.0.0` (build `1`)
+- Android version: `1.0.1` (versionCode `2`; three-dot menu, Back key and official report icon fix)
 
 The application loads the generated local `www/` bundle through Capacitor. `capacitor.config.json` intentionally has no `server.url`.
 

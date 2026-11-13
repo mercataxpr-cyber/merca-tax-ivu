@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import vm from 'node:vm';
 
 const ui = readFileSync('src/mobile-vnext-ui.js', 'utf8');
 const build = readFileSync('scripts/build.mjs', 'utf8');
@@ -90,4 +91,42 @@ test('three-dot menu stays above the bottom navigation with internal scrolling',
   assert.doesNotMatch(readFileSync('legal-links.js', 'utf8'), /getElementById\('menu'\)|data-mt-legal-links/);
   assert.doesNotMatch(buildWeb, /teki-menu-viewport|m\.style\.position|Cerrar menú/);
   assert.equal(existsSync('src/teki-report-fix-r2.js'), false);
+});
+
+test('Android Back closes the open menu through one transient listener and leaves native navigation alone', async () => {
+  const native = readFileSync('src/mobile-native-entry.js', 'utf8');
+  assert.equal((native.match(/addListener\('backButton'/g) || []).length, 1);
+  assert.match(native, /if \(!bridge\.isNative\) return;\n  installMenuBackButton\(\);/);
+  const fnSource = native.match(/function installMenuBackButton\(\) \{[\s\S]*?\n\}\n/)?.[0];
+  assert.ok(fnSource, 'installMenuBackButton not found');
+
+  const menu = { style: { display: 'none' } };
+  let observerCallback = null;
+  const added = [];
+  let removed = 0;
+  const window = {
+    vxMenuIsOpen: () => menu.style.display === 'block',
+    vxCloseMenu: () => { menu.style.display = 'none'; },
+  };
+  const App = { addListener: (event, cb) => { added.push({ event, cb }); return Promise.resolve({ remove: () => { removed += 1; } }); } };
+  const context = {
+    window, App, Promise,
+    document: { getElementById: (id) => (id === 'menu' ? menu : null) },
+    MutationObserver: class { constructor(cb) { observerCallback = cb; } observe() {} },
+  };
+  vm.runInNewContext(`${fnSource}; installMenuBackButton();`, context);
+  const mutate = async (display) => { menu.style.display = display; observerCallback(); await new Promise((r) => setImmediate(r)); };
+
+  assert.equal(added.length, 0, 'closed menu must not capture Back');
+  await mutate('block');
+  await mutate('block');
+  assert.equal(added.length, 1, 'exactly one listener while open');
+  assert.equal(added[0].event, 'backButton');
+  added[0].cb({ canGoBack: true });
+  assert.equal(menu.style.display, 'none', 'Back closes the menu');
+  observerCallback();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(removed, 1, 'listener removed once the menu is closed');
+  await mutate('block');
+  assert.equal(added.length, 2, 're-registers on next open');
 });
