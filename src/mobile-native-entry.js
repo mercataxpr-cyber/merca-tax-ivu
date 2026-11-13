@@ -155,8 +155,29 @@ function showNativeNotificationHelp() {
   if (modal) modal.style.display = 'flex';
 }
 
+// Android Back closes the three-dot menu. Capacitor only hands Back to JS while a
+// 'backButton' listener exists, so the single listener lives only while the menu is
+// open; when it is closed (including over dialogs) native WebView navigation is untouched.
+function installMenuBackButton() {
+  const menu = document.getElementById('menu');
+  if (!menu) return;
+  let listener = null;
+  const sync = () => {
+    if (typeof window.vxMenuIsOpen === 'function' && window.vxMenuIsOpen()) {
+      if (!listener) listener = App.addListener('backButton', () => window.vxCloseMenu());
+    } else if (listener) {
+      const pending = listener;
+      listener = null;
+      Promise.resolve(pending).then((handle) => handle.remove()).catch(() => {});
+    }
+  };
+  new MutationObserver(sync).observe(menu, { attributes: true, attributeFilter: ['style'] });
+  sync();
+}
+
 async function installNativeOverrides() {
   if (!bridge.isNative) return;
+  installMenuBackButton();
 
   try {
     notificationPermission = await bridge.notifications.status();
