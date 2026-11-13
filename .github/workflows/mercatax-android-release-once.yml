@@ -111,8 +111,15 @@ jobs:
           AAB=android/app/build/outputs/bundle/release/app-release.aab
           APK=android/app/build/outputs/apk/release/app-release.apk
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
-          jarsigner -verify -strict "$AAB" | tee /tmp/aab-verify.txt
+          # Upload keys are self-signed by design, so -strict (which fails on self-signed chains) is not
+          # used; require a verified signature with no unsigned entries instead, plus bundletool validation.
+          jarsigner -verify -verbose "$AAB" > /tmp/aab-verify.txt
           grep -q "jar verified" /tmp/aab-verify.txt
+          ! grep -q "unsigned entries" /tmp/aab-verify.txt
+          curl -fsSL -o /tmp/bundletool.jar https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar
+          java -jar /tmp/bundletool.jar validate --bundle="$AAB" > /tmp/bundletool-validate.txt
+          head -20 /tmp/bundletool-validate.txt
+          echo "AAB_BUNDLETOOL_VALIDATE=PASS"
           "$BT/apksigner" verify --verbose --print-certs "$APK" | tee /tmp/apk-verify.txt
           grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" /tmp/apk-verify.txt
           APK_CERT=$(grep -m1 "Signer #1 certificate SHA-256 digest" /tmp/apk-verify.txt | awk '{print $NF}')
