@@ -139,9 +139,13 @@ jobs:
           cmp icon-512.png /tmp/aab/base/assets/public/icon-512.png
           # Launcher/adaptive bitmaps are regenerated from icon-512.png by mobile:build; AAPT2 may
           # recompress them, so presence is gated here and pixels are inspected on the downloaded files.
+          # Release APKs may shorten resource paths, so the APK is checked through its resource table.
+          "$BT/aapt2" dump resources "$APK" > /tmp/apk-resources.txt
+          for f in ic_launcher ic_launcher_round ic_launcher_foreground; do
+            grep -q "mipmap/$f" /tmp/apk-resources.txt
+          done
           for d in ldpi mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             for f in ic_launcher ic_launcher_round ic_launcher_foreground; do
-              test -s "/tmp/apk/res/mipmap-$d-v4/$f.png"
               test -s "/tmp/aab/base/res/mipmap-$d-v4/$f.png"
             done
           done
