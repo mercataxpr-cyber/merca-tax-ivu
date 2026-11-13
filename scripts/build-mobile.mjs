@@ -21,7 +21,6 @@ const files = [
   'privacy.html',
   'terms.html',
   'legal-links.js',
-  'logo.png',
   'icon-192.png',
   'icon-512.png',
   'apple-touch-icon.png'

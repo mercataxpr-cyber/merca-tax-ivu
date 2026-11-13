@@ -51,7 +51,7 @@
       .vxReportBox{border:1px solid #ebe4cc;background:linear-gradient(145deg,#fff,#fffdf8);border-radius:19px;padding:17px}.vxReportPeriod{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-bottom:12px}.vxReportPeriod span{color:#68717e;font-weight:800}.vxReportPeriod strong{color:#be8800;font-size:23px;text-transform:capitalize}.vxReportRows{border-top:1px solid #ece9de}.vxReportRows div{display:flex;justify-content:space-between;gap:10px;padding:12px 3px;border-bottom:1px solid #efefef;color:#555f6c}.vxReportRows strong{color:#16191e;font-size:18px}.vxReportRows .total{margin-top:9px;border:1px solid #efde9d;background:#fffaf0;border-radius:13px;padding:12px}.vxReportRows .total strong{color:#c58d00;font-size:23px}.vxNote{font-size:10px;color:#8d949d;line-height:1.35;margin-top:7px}
       .vxCalcHero{display:grid;grid-template-columns:55px minmax(0,1fr);gap:13px;align-items:center}.vxCalcHeroIcon{width:52px;height:52px;border-radius:15px;background:#fff7e5;color:#bf8900;display:grid;place-items:center}.vxCalcHero h2{margin:0;font-size:25px}.vxCalcHero p{margin:4px 0 0;color:#707987;line-height:1.35}.vxModes{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--vx-line);border-radius:18px;overflow:hidden;margin-top:18px}.vxModes button{min-height:76px;border:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}.vxModes button.active{background:#11161d;color:#fff}.vxModes span{font-size:11px;color:#858c96}.vxRates{margin-top:16px;border:1px solid var(--vx-line);border-radius:17px;padding:14px}.vxRatesHead{display:flex;justify-content:space-between;gap:8px}.vxRatesHead span{border:1px solid #e6c143;color:#a87700;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900}.vxRateGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:13px}.vxRateGrid div{display:flex;flex-direction:column}.vxRateGrid span{font-size:11px;color:#697386}.vxRateGrid strong{font-size:20px}.vxAdLabel{display:flex;align-items:center;gap:10px;color:#9aa0a8;font-size:11px}.vxAdLabel:before,.vxAdLabel:after{content:'';height:1px;background:#e2e3e5;flex:1}.vxAd{min-height:88px;border:1px dashed #d7d9dc;border-radius:17px;background:#fff;display:grid;place-items:center;text-align:center;color:#858c95;padding:12px}.vxAd strong{display:block;color:#606872}.vxAd span{font-size:10px}.vxResult{padding:14px 17px}.vxResultHead{display:flex;gap:8px;align-items:center;color:#697386;font-size:12px;font-weight:800;padding-bottom:10px}.vxResultGrid{display:grid;grid-template-columns:repeat(3,1fr)}.vxResultGrid div{padding:0 10px;border-right:1px solid #ececec}.vxResultGrid div:first-child{padding-left:0}.vxResultGrid div:last-child{border:0;padding-right:0;text-align:right}.vxResultGrid span{display:block;font-size:10px;color:#858d98}.vxResultGrid strong{display:block;font-size:18px;margin-top:3px}.vxResultGrid small{display:block;color:#9ba1a9;font-size:9px;margin-top:2px}.vxGoldText{color:#be8700!important}
       .bottomNavBar{background:rgba(255,255,255,.98);border-top-color:#e9eaec;box-shadow:0 -8px 24px rgba(15,23,42,.06)}.vxNav.active{color:var(--vx-gold2)}.vxNav.active:after{background:var(--vx-gold);width:36px;height:4px}.vxNav.active .navLabel{color:var(--vx-gold2)}.vxNav .vxIcon{width:24px;height:24px}
-      .menu.vxMenu{width:min(360px,calc(100vw - 28px));right:14px;top:calc(76px + var(--safe-top,0px));border-radius:22px;padding:8px 14px;overflow:visible;border:1px solid #ececee;box-shadow:0 22px 50px rgba(15,23,42,.2)}.menu.vxMenu button{width:100%;min-height:54px;padding:0 4px;border-bottom:1px solid #ececee;gap:11px;background:#fff}.menu.vxMenu button:last-child{border:0}.vxMenuIcon{width:32px;color:var(--vx-gold2);font-size:19px;text-align:center}.vxMenuArrow{margin-left:auto;color:#6b7280;font-size:22px}.vxModalField{display:flex;flex-direction:column;gap:6px;margin-top:11px;color:#697386;font-size:11px;font-weight:800}
+      .menu.vxMenu{--vx-menu-top:calc(76px + var(--safe-top,0px));--vx-menu-bottom:calc(74px + var(--safe-bottom,0px));--vx-menu-max:calc(100vh - var(--vx-menu-top) - var(--vx-menu-bottom));position:fixed;z-index:110;top:var(--vx-menu-top);right:max(12px,var(--safe-right,0px));left:auto;width:min(520px,calc(100vw - 24px));min-width:0;max-width:calc(100vw - 24px);max-height:var(--vx-menu-max);box-sizing:border-box;border-radius:22px;padding:58px 14px 8px;overflow:hidden;border:1px solid #ececee;box-shadow:0 22px 50px rgba(15,23,42,.2)}@supports(height:100dvh){.menu.vxMenu{--vx-menu-max:calc(100dvh - var(--vx-menu-top) - var(--vx-menu-bottom))}}.vxMenuList{max-height:calc(var(--vx-menu-max) - 68px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.menu.vxMenu button{width:100%;min-height:54px;padding:0 4px;border-bottom:1px solid #ececee;gap:11px;background:#fff}.vxMenuList>button:last-child{border:0}.menu.vxMenu .vxMenuClose{position:absolute;top:8px;right:18px;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;margin:0;border:0;border-radius:50%;background:#f2f2f1;color:#11151b;font-size:32px;font-weight:400;line-height:1;display:grid;place-items:center;z-index:1}.vxMenuIcon{width:32px;color:var(--vx-gold2);font-size:19px;text-align:center}.vxMenuArrow{margin-left:auto;color:#6b7280;font-size:22px}.vxModalField{display:flex;flex-direction:column;gap:6px;margin-top:11px;color:#697386;font-size:11px;font-weight:800}
       @media(max-width:470px){.vxBusiness{grid-template-columns:54px minmax(0,1fr);padding:15px}.vxBizIcon{width:50px;height:50px}.vxBizCopy strong{font-size:20px}.vxManage{grid-column:1/-1}.vxDash{padding:19px}.vxHero{font-size:36px}.vxSales strong{font-size:19px}.vxSales small{display:none}.vxReminder{grid-template-columns:40px minmax(0,1fr)}.vxReminder button{grid-column:1/-1}.vxPeriods{align-items:flex-start;flex-direction:column}.vxChips{width:100%}.vxQuick{gap:7px}.vxQuick button{min-height:100px;font-size:11px}.vxPromo{grid-template-columns:52px minmax(0,1fr)}.vxPromo button{grid-column:1/-1}.vxGrid2{grid-template-columns:1fr}.vxHead{align-items:flex-start;flex-direction:column}.vxHistoryTools{grid-template-columns:1fr}.vxSort{min-height:45px}.vxMetrics{grid-template-columns:1fr 1fr}.vxCalcHero{grid-template-columns:50px minmax(0,1fr)}.vxRateGrid{grid-template-columns:1fr}.vxResultGrid{grid-template-columns:1fr}.vxResultGrid div{border-right:0;border-bottom:1px solid #ececec;padding:9px 0;text-align:left!important}.vxResultGrid div:last-child{border-bottom:0}.vxTitle h2,.vxCalcHero h2{font-size:22px}}
       @media(max-width:360px){.vxQuick{grid-template-columns:1fr}.vxQuick button{min-height:72px;flex-direction:row}.vxChips{grid-template-columns:1fr}.vxDashTop{flex-direction:column;align-items:flex-start}.vxSales{text-align:left}.vxStats{grid-template-columns:1fr}.vxStats div{border-right:0;border-bottom:1px solid rgba(255,255,255,.12);padding:9px 0}.vxStats div:last-child{border:0}}
     `;
@@ -83,9 +83,18 @@
   }
 
   const menuButton=(i,l,a)=>`<button type="button" onclick="${a}"><span class="vxMenuIcon">${i}</span><span>${l}</span><span class="vxMenuArrow">›</span></button>`;
+  // Single owner of the three-dot menu: markup, close control and dismissal.
+  // Geometry lives in the .menu.vxMenu CSS above: fixed below the header, capped above the
+  // bottom navigation and system bars, with the option list scrolling internally.
+  function closeMenu(){const m=$('menu');if(m)m.style.display='none';}
+  root.vxCloseMenu=closeMenu;
+  function installMenuDismiss(){
+    doc.addEventListener('pointerdown',e=>{const m=$('menu');const t=e.target;if(!m||m.style.display!=='block'||m.contains(t)||(t&&t.closest&&t.closest('.dots')))return;closeMenu();},true);
+    doc.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu();});
+  }
   function rebuildMenu(){
     const m=$('menu'); if(!m)return; m.classList.add('vxMenu');
-    m.innerHTML=[
+    m.innerHTML='<button type="button" class="vxMenuClose" aria-label="Cerrar menú" title="Cerrar menú" onclick="vxCloseMenu()">×</button><div class="vxMenuList">'+[
       menuButton('⚙','Gestionar negocio','showBusinessChooser()'),
       menuButton('▤','Editar Perfil del Negocio','vxEditBusiness()'),
       menuButton('＋','Crear Nuevo Negocio',"showDialog('negocio')"),
@@ -96,7 +105,7 @@
       menuButton('⬡','Privacidad',"window.location.href='privacy.html'"),
       menuButton('▧','Términos',"window.location.href='terms.html'"),
       menuButton('▥','Sobre MercaTax',"showDialog('acerca')")
-    ].join('');
+    ].join('')+'</div>';
   }
 
   function due(){try{return MercaTaxTaxUi.duePresentation({reportingPeriod:state.selectedMonth,currentDate:new Date()});}catch(_){return{ready:false,effectiveDate:null,text:'Fecha contributiva no disponible; calendario certificado requerido.'};}}
@@ -139,7 +148,7 @@
   root.vxSaveBusiness=()=>{const b=biz(),name=($('vxBizName')?.value||'').trim();if(!name)return toast('Ingrese el nombre del negocio');b.name=name;b.muni=$('vxBizMuni')?.value||b.muni;b.merchantNo=($('vxBizMerchant')?.value||'').trim();b.email=($('vxBizEmail')?.value||'').trim();save();render();closeDialog();toast('Perfil del negocio actualizado');};
   root.vxLanguage=()=>{const m=$('menu');if(m)m.style.display='none';showDialog('vxLanguage');$('modalTitle').textContent='Idioma';$('modalBody').innerHTML='<p><b>Español (ES)</b> es el idioma activo de MercaTax IVU PR.</p>';$('modalActions').innerHTML='<button class="btn dark" onclick="closeDialog()">Entendido</button>';};
 
-  const REPORT_LOGO_PATH='logo.png';
+  const REPORT_LOGO_PATH='icon-512.png';
 
   function installReportBranding(){
     if(typeof root.reportHtml!=='function'||root.reportHtml.__vxBranded)return;
@@ -162,6 +171,6 @@
   }
 
   function wrapRender(){if(root.render?.__vxWrapped)return;const legacy=root.render;if(typeof legacy!=='function')return;const wrapped=function(...args){const out=legacy.apply(this,args);renderAll();return out;};wrapped.__vxWrapped=true;root.render=wrapped;}
-  function boot(){installCss();installReportBranding();if(!ensureShell())return;rebuildNav();rebuildMenu();wrapRender();renderAll();doc.documentElement.classList.add('mercatax-vnext-ready');root.addEventListener('mercatax:native-ready',renderAll);}
+  function boot(){installCss();installReportBranding();if(!ensureShell())return;rebuildNav();rebuildMenu();installMenuDismiss();wrapRender();renderAll();doc.documentElement.classList.add('mercatax-vnext-ready');root.addEventListener('mercatax:native-ready',renderAll);}
   boot();
 }(window));

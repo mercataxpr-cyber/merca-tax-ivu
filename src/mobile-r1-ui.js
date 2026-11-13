@@ -66,8 +66,8 @@
   const baseReportHtml = window.reportHtml;
   window.reportHtml = function reportHtmlMobile(sales) {
     let html = baseReportHtml(sales);
-    let officialLogoUrl = 'logo.png';
-    try { officialLogoUrl = new URL('logo.png', window.location.href).href; } catch (error) {}
+    let officialLogoUrl = 'icon-512.png';
+    try { officialLogoUrl = new URL('icon-512.png', window.location.href).href; } catch (error) {}
 
     html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">');
     html = html.replace('.page{width:8.5in;min-height', '.page{width:8.5in;max-width:100%;min-height');

@@ -21,21 +21,9 @@
     nav.appendChild(createLink('privacy.html','Política de Privacidad'));
     if(footer.parentNode) footer.parentNode.insertBefore(nav,footer.nextSibling);
   }
-  function installMenu(){
-    var menu=document.getElementById('menu');
-    if(!menu||menu.querySelector('[data-mt-legal-links]')) return;
-    var box=document.createElement('div');
-    box.setAttribute('data-mt-legal-links','1');
-    box.style.cssText='display:grid;gap:8px;padding:10px 12px 14px;border-top:1px solid rgba(255,255,255,.1)';
-    var title=document.createElement('div');
-    title.textContent='Legal';
-    title.style.cssText='font-size:11px;font-weight:900;opacity:.7;text-transform:uppercase;letter-spacing:.08em';
-    box.appendChild(title);
-    box.appendChild(createLink('terms.html','Términos y Condiciones'));
-    box.appendChild(createLink('privacy.html','Política de Privacidad'));
-    menu.appendChild(box);
-  }
-  function install(){installFooter();installMenu()}
+  // The three-dot menu owns its Privacidad / Términos entries (src/mobile-vnext-ui.js);
+  // this runtime only provides the footer legal navigation.
+  function install(){installFooter()}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
   new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
 })();
